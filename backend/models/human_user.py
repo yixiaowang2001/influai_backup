@@ -10,6 +10,7 @@ class HumanUser:
             persona: str = "",
             description: str = "",
             follower_count: int = 0,
+            commenter_distribution: dict = None,
             history_posts: list = None,
             created_at: datetime = None,
     ):
@@ -18,6 +19,7 @@ class HumanUser:
         self.avatar = avatar
         self.persona = persona
         self.description = description
-        self.follower_count = follower_count  # 后续支持详细follower，替换成followers
+        self.follower_count = follower_count
+        self.commenter_distribution = commenter_distribution
         self.history = history_posts
         self.created_at = created_at
