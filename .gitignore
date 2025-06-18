@@ -197,3 +197,4 @@ cython_debug/
 .cursorindexingignore
 
 backend_debug.log
+backend/configs/credential.py

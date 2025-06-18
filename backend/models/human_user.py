@@ -9,6 +9,7 @@ class HumanUser:
     avatar_path: str = ""
     persona: str = ""
     description: str = ""
+    commenter_distribution: dict = None,
     follower_count: int = 0
     history_posts: list = None
     created_at: datetime = None
