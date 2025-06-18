@@ -1,8 +1,8 @@
+import json
+import re
+
 from inference import chat
 from prompts import get_predict_post_stats_prompt
-
-import re
-import json
 
 
 def predict_post_stats(
@@ -19,6 +19,7 @@ def predict_post_stats(
     :param history_posts: 历史帖子内容
     :return: 预测转发量，预测新增关注量，预测评论量，预测点赞量
     """
+
     system_prompt, user_prompt = get_predict_post_stats_prompt(
         persona=persona,
         follower_count=follower_count,
@@ -33,7 +34,7 @@ def predict_post_stats(
         max_tokens=256
     )
 
-    print(response)
+    # print(response)
 
     try:
         return json.loads(response)
@@ -78,6 +79,7 @@ def predict_post_stats(
         "pred_like_count": 0
     }
 
+
 def update_commenter_distribution(
         prev_commenter_distribution: dict,
         persona: str,
@@ -98,14 +100,8 @@ def update_commenter_distribution(
 
 if __name__ == '__main__':
     from backend.data.test_data import GAMER
-    post_content = "煞笔游戏，再也不玩了"
-    print(predict_post_stats(
-        persona=GAMER.get("persona"),
-        follower_count=GAMER.get("follower_count"),
-        post_content=post_content,
-    ))
 
-    post_content = "明天我要开播！都来看"
+    post_content = "上海人别他妈看我直播，都是傻逼"
     print(predict_post_stats(
         persona=GAMER.get("persona"),
         follower_count=GAMER.get("follower_count"),
