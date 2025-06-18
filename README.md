@@ -1,7 +1,6 @@
 # influai_backup
 
 ## TODO
-- 创建ai_user和comment的类。
 - inference部分修改，完成每个方法的输入输出。
   - 具体要哪些方法，参考下面的CoT。
   - 完成的过程中，反向优化human_user，post，ai_user，comment的类字段。

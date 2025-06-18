@@ -3,12 +3,10 @@ from datetime import datetime
 
 
 @dataclass
-class HumanUser:
+class AIUser:
     user_id: int
     username: str
     avatar_path: str = ""
-    persona: str = ""
-    description: str = ""
-    follower_count: int = 0
-    history_posts: list = None
+    history_comments: list = None
     created_at: datetime = None
+    attitude_value: float = 0.0
