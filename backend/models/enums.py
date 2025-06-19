@@ -38,3 +38,4 @@ class Attitude(Enum):
 
 if __name__ == '__main__':
     print(Attitude.from_value(0.95))
+    print(Attitude.BAD)

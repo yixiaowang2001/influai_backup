@@ -2,7 +2,7 @@ import json
 import re
 
 from inference import chat
-from prompts import get_predict_post_stats_prompt
+from prompts import get_predict_post_stats_prompt, get_update_commenter_distribution_prompt
 
 
 def predict_post_stats(
@@ -33,8 +33,6 @@ def predict_post_stats(
         temperature=0.1,
         max_tokens=256
     )
-
-    # print(response)
 
     try:
         return json.loads(response)
@@ -94,6 +92,20 @@ def update_commenter_distribution(
     :param history_posts: 历史帖子内容
     :return: 新评论者分布
     """
+    system_prompt, user_prompt = get_update_commenter_distribution_prompt(
+        prev_commenter_distribution=prev_commenter_distribution,
+        persona=persona,
+        post_content=post_content,
+        history_posts=history_posts,
+    )
+    response = chat(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        model_name="qwen-turbo",
+        temperature=0.1,
+        max_tokens=256
+    )
+    print(response)
     new_commenter_distribution = {}
     return new_commenter_distribution
 
@@ -102,8 +114,15 @@ if __name__ == '__main__':
     from backend.data.test_data import GAMER
 
     post_content = "上海人别他妈看我直播，都是傻逼"
-    print(predict_post_stats(
-        persona=GAMER.get("persona"),
-        follower_count=GAMER.get("follower_count"),
+
+    # print(predict_post_stats(
+    #     persona=GAMER["persona"],
+    #     follower_count=GAMER["follower_count"],
+    #     post_content=post_content,
+    # ))
+
+    print(update_commenter_distribution(
+        prev_commenter_distribution=GAMER["commenter_distribution"],
+        persona=GAMER["persona"],
         post_content=post_content,
     ))
