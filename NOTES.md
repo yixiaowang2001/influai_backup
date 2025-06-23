@@ -1,6 +1,9 @@
 # influai_backup
 
 ## TODO
+- level1_comment
+  - 增加json适配
+  - 考虑兜底方法
 - 填写prompt。
 - 完成阿里云llm交互配置。
 - 测试。

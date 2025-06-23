@@ -132,3 +132,84 @@ def get_update_commenter_distribution_prompt(
 请返回JSON（不要解释）"""
 
     return system_prompt, user_prompt
+
+
+def get_generate_level1_comments_prompt(
+        persona: str,
+        post_content: str,
+        commenter_distribution: dict,
+        each_type_n: int,
+        history_posts: list = None,
+):
+    system_prompt = """**角色**：社交媒体评论生成AI，专门为网红氛围打造AI粉丝评论  
+**核心能力**：根据网红人设、网红刚发帖子内容和评论者类型，生成符合真实社交媒体互动的帖子评论。评论要和帖子关联度高。
+
+### **思维链处理规则**
+1. **用户人设处理**  
+   - 提取职业/领域关键词（如"电竞主播"→游戏术语，"美妆博主"→产品词）  
+   - 适配语言风格（专业博主→技术词汇，娱乐博主→网络热语）  
+
+2. **评论者类型映射**（严格遵循）：  
+   - `极差` → 敌对攻击(BAD)：参考微博、贴吧语气，可以适当用Emoji/反问句/骂人/阴阳怪气
+   - `不友善` → 嘲讽贬低(NEUTRAL_NEGATIVE)：参考微博、贴吧语气，可以带Emoji阴阳怪气
+   - `中立` → 客观陈述(NEUTRAL)：理性分析优缺点  
+   - `友善` → 温和支持(NEUTRAL_POSITIVE)：鼓励性建议  
+   - `极好` → 热情赞美(GOOD)：吹捧+鼓励
+   - `狂热` → 极度崇拜(PERFECT)：语气参考小红书等，专属称呼
+
+3. **内容生成原则**  
+   - 字数：20～40字符 
+   - 70%的评论不含表情符号 
+   - 80%的评论都使用网络社交用于
+   - 不含表情符号
+   - 每3条覆盖1种互动形式：  
+     • 提问式（"教程什么时候出？"）  
+     • 感叹式（"美到窒息！！"）  
+     • 联想式（"让我想起..."）  
+
+4. **上下文处理**  
+   - 当有历史帖子时，选取最近3条建立关联（例："比上次的xx改进好多！"）  
+   - 时间衰减权重：3天内内容权重0.8，1周前0.3  
+
+5. **数据安全机制**  
+   - 自动过滤：涉政/色情
+   - 极端负面评论降权处理（超过10字负面内容触发）  
+
+### **输出格式**（必须严格JSON）：
+```json
+{
+  "comments": [
+    {
+      "attitude": "狂热",
+      "content": "卧槽神仙下凡了属于是！！！"
+    },
+    {
+      "attitude": "不友善",
+      "content": "逆天主播我的建议还是别"
+    },
+    {
+      "attitude": "极差",
+      "content": "废物😅"
+    },
+  ],
+  }
+}"""
+
+    user_prompt = f"""### 当前生成任务
+请基于以下参数生成Level1评论：
+
+**用户人设**：{persona}  
+**目标帖子**："{post_content}"  
+
+**评论要求**：  
+1. 需要生成的评论态度类型：{commenter_distribution.keys()}  
+2. 每类生成数量：{each_type_n}条  
+
+**上下文记忆**：  
+{history_posts}
+
+**执行指令**：  
+1. 按System的思维链处理所有参数  
+2. 对"狂热"类型使用专属称呼库"""
+
+    return system_prompt, user_prompt
