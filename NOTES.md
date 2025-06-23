@@ -1,9 +1,6 @@
 # influai_backup
 
 ## TODO
-- 完善commenter_distribution的方法
-  - 确保结果的和唯一（softmax）
-  - 为整个py添加logger
 - 填写prompt。
 - 完成阿里云llm交互配置。
 - 测试。
