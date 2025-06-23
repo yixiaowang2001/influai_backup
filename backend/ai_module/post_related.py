@@ -1,7 +1,6 @@
-import json
-import re
-
-from inference import chat
+from backend.models.enums import Attitude
+from llm import chat
+from llm_utils import parse_json_response
 from prompts import get_predict_post_stats_prompt, get_update_commenter_distribution_prompt
 
 
@@ -17,7 +16,7 @@ def predict_post_stats(
     :param follower_count: 用户粉丝数量
     :param post_content: 帖子内容
     :param history_posts: 历史帖子内容
-    :return: 预测转发量，预测新增关注量，预测评论量，预测点赞量
+    :return: 预测新增关注量，预测评论量，预测点赞量
     """
 
     system_prompt, user_prompt = get_predict_post_stats_prompt(
@@ -26,6 +25,7 @@ def predict_post_stats(
         post_content=post_content,
         history_posts=history_posts,
     )
+
     response = chat(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
@@ -34,48 +34,13 @@ def predict_post_stats(
         max_tokens=256
     )
 
-    try:
-        return json.loads(response)
-    except json.JSONDecodeError:
-        pass
-    cleaned_response = response.strip()
-
-    if cleaned_response.startswith('```json') and cleaned_response.endswith('```'):
-        try:
-            content = cleaned_response[7:-3].strip()
-            return json.loads(content)
-        except:
-            pass
-
-    xml_match = re.search(r'<json>(.*?)</json>', cleaned_response, re.DOTALL)
-    if xml_match:
-        try:
-            return json.loads(xml_match.group(1).strip())
-        except:
-            pass
-
-    json_match = re.search(r'\{[\s\S]*\}', cleaned_response)
-    if json_match:
-        try:
-            return json.loads(json_match.group(0))
-        except:
-            pass
-
-    numbers = re.findall(r'\b\d+\b', cleaned_response)
-    if len(numbers) >= 4:
-        return {
-            "pred_repost_count": int(numbers[0]),
-            "pred_new_follower_count": int(numbers[1]),
-            "pred_comment_count": int(numbers[2]),
-            "pred_like_count": int(numbers[3])
-        }
-
-    return {
-        "pred_repost_count": 0,
+    default_response = {
         "pred_new_follower_count": 0,
         "pred_comment_count": 0,
         "pred_like_count": 0
     }
+
+    return parse_json_response(response, default_response)
 
 
 def update_commenter_distribution(
@@ -98,6 +63,7 @@ def update_commenter_distribution(
         post_content=post_content,
         history_posts=history_posts,
     )
+
     response = chat(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
@@ -105,9 +71,24 @@ def update_commenter_distribution(
         temperature=0.1,
         max_tokens=256
     )
-    print(response)
-    new_commenter_distribution = {}
-    return new_commenter_distribution
+
+    default_response = {
+        Attitude.BAD: 0.0,
+        Attitude.NEUTRAL_NEGATIVE: 0.0,
+        Attitude.NEUTRAL: 0.0,
+        Attitude.NEUTRAL_POSITIVE: 0.0,
+        Attitude.GOOD: 0.0,
+        Attitude.PERFECT: 0.0
+    }
+
+    json_response = parse_json_response(response, default_response)
+    json_converted = {}
+    for key, value in json_response.items():
+        enum_value = Attitude.from_label(key)
+        if enum_value is None:
+            return default_response
+        json_converted[enum_value] = value
+    return json_converted
 
 
 if __name__ == '__main__':

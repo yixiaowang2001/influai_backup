@@ -24,6 +24,23 @@ class Attitude(Enum):
             if value == 1.0:
                 return cls.PERFECT
 
+    @classmethod
+    def from_label(cls, label: str):
+        label_map = {
+            "极差": cls.BAD,
+            "不友善": cls.NEUTRAL_NEGATIVE,
+            "中立": cls.NEUTRAL,
+            "友善": cls.NEUTRAL_POSITIVE,
+            "极好": cls.GOOD,
+            "狂热": cls.PERFECT
+        }
+
+        normalized_label = label.strip().lower()
+        for label_str, enum_value in label_map.items():
+            if normalized_label == label_str.lower():
+                return enum_value
+        return None
+
     def __str__(self):
         attitude_name_map = {
             self.BAD: "极差",
@@ -39,3 +56,5 @@ class Attitude(Enum):
 if __name__ == '__main__':
     print(Attitude.from_value(0.95))
     print(Attitude.BAD)
+    print(Attitude.from_label("很好"))
+    print(Attitude.from_label("狂热"))
