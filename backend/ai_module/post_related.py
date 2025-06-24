@@ -112,7 +112,7 @@ def update_commenter_distribution(
 if __name__ == '__main__':
     from backend.data.test_data import GAMER
 
-    post_content = "上海人别他妈看我直播，都是傻逼"
+    post_content = ""
 
     # print(predict_post_stats(
     #     persona=GAMER["persona"],

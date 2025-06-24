@@ -51,7 +51,7 @@ def generate_similar_level2_comments():
 
 if __name__ == '__main__':
     from backend.data.test_data import GAMER
-    post_content = "上海人别他妈看我直播，都是傻逼"
+    post_content = "我耗时两年半精心制作的新专《及你太美》马上就要上线了！都！给！我！去！听！"
 
     generate_level1_comments(
         persona=GAMER["persona"],
