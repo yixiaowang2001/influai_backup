@@ -19,13 +19,16 @@ class Attitude(Enum):
 
         for label in cls:
             lower, upper = label.value
-            if (value == lower and value != -1.0) or (value >= lower and value < upper):
+            if (value == lower and value != -1.0) or (lower <= value < upper):
                 return label
             if value == 1.0:
                 return cls.PERFECT
 
     @classmethod
-    def from_label(cls, label: str):
+    def parse(cls, attitude_input: str):
+        if not attitude_input:
+            return None
+        attitude_input = attitude_input.strip()
         label_map = {
             "极差": cls.BAD,
             "不友善": cls.NEUTRAL_NEGATIVE,
@@ -34,12 +37,34 @@ class Attitude(Enum):
             "极好": cls.GOOD,
             "狂热": cls.PERFECT
         }
-
-        normalized_label = label.strip().lower()
-        for label_str, enum_value in label_map.items():
-            if normalized_label == label_str.lower():
-                return enum_value
+        if attitude_input in label_map:
+            return label_map[attitude_input]
+        if attitude_input.startswith("Attitude."):
+            enum_name = attitude_input.split(".", 1)[-1]
+            try:
+                return cls[enum_name]
+            except KeyError:
+                pass
+        try:
+            return cls[attitude_input]
+        except KeyError:
+            pass
+        normalized_output = attitude_input.lower()
+        for label, enum_val in label_map.items():
+            if normalized_output == label.lower():
+                return enum_val
         return None
+
+    @classmethod
+    def create_dict(cls):
+        return {
+            cls.BAD: [],
+            cls.NEUTRAL_NEGATIVE: [],
+            cls.NEUTRAL: [],
+            cls.NEUTRAL_POSITIVE: [],
+            cls.GOOD: [],
+            cls.PERFECT: []
+        }
 
     def __str__(self):
         attitude_name_map = {
@@ -56,5 +81,6 @@ class Attitude(Enum):
 if __name__ == '__main__':
     print(Attitude.from_value(0.95))
     print(Attitude.BAD)
-    print(Attitude.from_label("很好"))
-    print(Attitude.from_label("狂热"))
+    print(Attitude.parse("很好"))
+    print(Attitude.parse("狂热"))
+    print(Attitude.create_dict())
