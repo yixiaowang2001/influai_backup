@@ -1,12 +1,15 @@
 # influai_backup
 
 ## TODO
-- level1_similar_comment
+- expand_lv1_comments
+  - prompt调整
+  - 工程（解析）
+- generate_lvn_comments
+  - prompt调整
+  - 工程（解析）
+- comments_related，logger添加
 - 评论点赞逻辑
-- 嵌套评论逻辑
-- 填写prompt。
-- 完成阿里云llm交互配置。
-- 测试。
+- 测试
 
 
 ## CoT

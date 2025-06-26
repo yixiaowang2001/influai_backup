@@ -81,6 +81,7 @@ class Attitude(Enum):
 if __name__ == '__main__':
     print(Attitude.from_value(0.95))
     print(Attitude.BAD)
+    print(str(Attitude.BAD) == "极差")
     print(Attitude.parse("很好"))
     print(Attitude.parse("狂热"))
     print(Attitude.create_dict())

@@ -31,7 +31,6 @@ def get_predict_post_stats_prompt(
   "pred_comment_count": /* 评论量 */,
   "pred_like_count": /* 点赞量 */
 }
-
 """
     user_prompt = f"""请预测以下社交媒体帖子的互动数据：
 
@@ -40,7 +39,8 @@ def get_predict_post_stats_prompt(
 **帖子内容**："{post_content}"
 **历史帖子**：{history_posts if history_posts else "无"}
 
-要求输出JSON格式预测值（仅包含四个键值对）"""
+要求输出JSON格式预测值（仅包含四个键值对）
+"""
 
     return system_prompt, user_prompt
 
@@ -69,9 +69,10 @@ def get_generate_lv1_comments_prompt(
    - `狂热` → 极度崇拜(PERFECT)：最狂热的粉丝，会主动帮助博主进行宣传和帖子的亮点发掘
 
 3. **内容生成原则**  
-   - 字数：10～50个汉字（生成字数长短变化幅度大一些）
+   - 字数：10～30个汉字（生成字数长短变化幅度大一些）
    - 70%的评论不含表情符号 
    - 80%的评论都使用网络社交用语
+   - 不含Hashtag
    - 不含表情符号
    - 每3条覆盖1种互动形式：  
      • 提问式（"教程什么时候出？"）  
@@ -103,7 +104,8 @@ def get_generate_lv1_comments_prompt(
     },
   ],
   }
-}"""
+}
+"""
 
     user_prompt = f"""### 当前生成任务
 请基于以下参数生成Level1评论：
@@ -120,36 +122,132 @@ def get_generate_lv1_comments_prompt(
 
 **执行指令**：  
 1. 按System的思维链处理所有参数  
-2. 对"狂热"类型使用专属称呼库"""
+2. 对"狂热"类型使用专属称呼库
+"""
 
     return system_prompt, user_prompt
 
 
 def get_expand_lv1_comments_prompt(
+        persona: str,
         post_content: str,
         attitude_type: Attitude,
-        reference_lv1_list: list,
-        generate_number: int
+        seed_comments: list,
+        expand_count: int
 ) -> tuple[str, str]:
-    system_prompt = """
-    """
+    system_prompt = f"""**角色**：社交媒体评论扩展AI，基于种子评论生成同态度/同风格的批量评论
+**核心任务**：保持原始评论的核心特征（态度），生成语义相似的新评论
 
-    user_prompt = """
-    """
+### 内容生成法则
+1. **特征继承机制**
+   - 语言风格：严格继承种子评论的网络用语特征（如“绝绝子”“yyds”等）
+   - 情感强度：保持原始评论的情感烈度（狂热评论需同等亢奋）
+   - 句式结构：复用种子评论的修辞手法（排比/反问/感叹）
+
+2. **语义变体策略**
+   - 角度偏移：保持态度不变，调整表述视角（示例：原文夸颜值 → 新评论夸气质）
+   - 句式重组：拆解长句结构或合并短句，保持平均长度±50%波动
+
+3. **相似度控制**
+   - 严格维持原始态度分类
+   - 禁止完全复制种子句式结构
+
+4. **批量生成规范**
+   - 每组种子评论生成{expand_count}条变体
+   - 变体间重复度<10%（使用不同修辞范例）
+   - 自动过滤涉政/低俗内容
+
+### 输出格式
+```json
+{{
+  "expansions": [
+    "变体评论1",
+    "变体评论2",
+    // 生成{expand_count}条
+  ]
+}}
+```
+"""
+
+    user_prompt = f"""### 扩展任务指令
+请基于以下种子评论批量生成同风格变体：
+
+**用户人设**: {persona}
+**目标帖子**：“{post_content}”
+**原始态度**: {str(attitude_type)}
+**种子评论组**（共{len(seed_comments)}条）：
+{seed_comments}
+
+**执行要求**
+1. 每组生成{expand_count}条符合系统约束的变体
+2. 严格保持原始态度分类
+3. 输出完整JSON结构
+"""
 
     return system_prompt, user_prompt
 
 
 def get_generate_lvn_comments_prompt(
+        persona: str,
         post_content: str,
-        pre_lv_comment: str,
         attitude_type: Attitude,
-        generate_number: int
+        pre_lv_comment: str,
+        expand_count: int,
+        is_human_user: bool
 ) -> tuple[str, str]:
-    system_prompt = """
-    """
+    def generate_attitude_matrix(attitude: Attitude, is_human: bool) -> str:
+        matrix = {
+            Attitude.PERFECT: "→ 回复策略：赞美升华+情感共鸣",
+            Attitude.GOOD: "→ 回复策略：细节赞赏+经验分享",
+            Attitude.NEUTRAL_POSITIVE: "→ 回复策略：温和认同+补充说明",
+            Attitude.NEUTRAL: "→ 回复策略：客观探讨+中性提问",
+            Attitude.NEUTRAL_NEGATIVE: "→ 回复策略：保留意见+建设性质疑" if is_human else "→ 回复策略：阴阳怪气+内涵讽刺",
+            Attitude.BAD: "→ 回复策略：事实反驳+边界声明" if is_human else "→ 回复策略：激烈对抗+群体攻击"
+        }
+        return f"当前态度：{attitude.value}\n   {matrix[attitude]}"
 
-    user_prompt = """
-    """
+    system_prompt = f"""**角色**：社交媒体对话延伸AI，专门生成嵌套评论回复
+**核心能力**：根据回复对象类型（AI生成评论/真实用户）生成场景化的树状互动
+
+### 评论树生成规则
+1. **对象感知处理**
+   - {"特殊处理：回复对象是真人用户 → 感情更强烈" if is_human_user else "回复AI用户 → 继承原始评论风格，使用重度网络用语"}
+
+2. **对话流构建**
+   - 延续原评论的语义焦点（80%内容需直接回应上条评论）
+   - 嵌套层级深度感知：
+     • 一级回复 → 关联主帖内容(30%)+原评论(70%)
+     • 二级+回复 → 完全聚焦原评论(95%)
+   - 转折点注入：每3条需有1条引入新观点
+
+3. **态度控制矩阵**
+    {generate_attitude_matrix(attitude_type, is_human_user)}
+
+4. **生成规范**
+   - 字数：{"8-25汉字" if is_human_user else "5-40汉字"}
+   - 表情符号：{"≤10%使用率" if is_human_user else "50%使用率"}
+   - 安全过滤：政治
+
+### 输出格式
+```json
+{{
+  "nested:": [
+    "生成的嵌套评论1",
+    "生成的嵌套评论2",
+    // 共{expand_count}条
+  ]
+}}
+```"""
+
+    user_prompt = f"""### 嵌套评论生成任务
+**用户人设**: {persona}
+**目标帖子**："{post_content}"
+**回复对象**：{"(真人用户)" if is_human_user else "(AI用户)"}
+**上级评论**："{pre_lv_comment}"
+
+**核心要求**：
+1. 严格延续对待帖主（真人用户）【{attitude_type.value}】态度
+2. 生成{expand_count}条语义关联的嵌套评论
+"""
 
     return system_prompt, user_prompt
