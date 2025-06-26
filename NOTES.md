@@ -9,8 +9,7 @@
   - 工程（解析）
 - comments_related，logger添加
 - 评论点赞逻辑
-- 测试
-
+- 后端
 
 ## CoT
 - 维护一个AI用户的数据库，包含生成的userid，username，态度，创建时间，是否是粉丝。 
