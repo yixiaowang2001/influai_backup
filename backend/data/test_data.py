@@ -1,4 +1,4 @@
-from backend.models.enums import Attitude
+from backend.models import Attitude
 
 STAR = {
     "persona": """这是一个在社交媒体上极具人气的娱乐明星角色：她是一位活跃在多个领域的全能型明星，涵盖音乐、影视、时尚等行业，拥有百

@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from backend.configs.global_config import IS_DEBUG
+from backend.configs import IS_DEBUG
 
 PROJECT_DIR = Path(__file__).parent.parent
 LOG_DIR = PROJECT_DIR

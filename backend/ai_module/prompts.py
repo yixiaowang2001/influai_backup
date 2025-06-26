@@ -1,3 +1,6 @@
+from backend.models import Attitude
+
+
 def get_predict_post_stats_prompt(
         persona: str,
         follower_count: int,
@@ -42,13 +45,13 @@ def get_predict_post_stats_prompt(
     return system_prompt, user_prompt
 
 
-def get_generate_level1_comments_prompt(
+def get_generate_lv1_comments_prompt(
         persona: str,
         post_content: str,
         commenter_distribution: dict,
         each_type_n: int,
         history_posts: list = None,
-):
+) -> tuple[str, str]:
     system_prompt = """**角色**：社交媒体评论生成AI，专门为明星氛围打造AI粉丝评论  
 **核心能力**：根据提供的明星人设、刚发帖子内容和评论者类型，生成符合真实社交媒体互动的帖子评论。评论要和帖子关联度高。
 
@@ -118,5 +121,35 @@ def get_generate_level1_comments_prompt(
 **执行指令**：  
 1. 按System的思维链处理所有参数  
 2. 对"狂热"类型使用专属称呼库"""
+
+    return system_prompt, user_prompt
+
+
+def get_expand_lv1_comments_prompt(
+        post_content: str,
+        attitude_type: Attitude,
+        reference_lv1_list: list,
+        generate_number: int
+) -> tuple[str, str]:
+    system_prompt = """
+    """
+
+    user_prompt = """
+    """
+
+    return system_prompt, user_prompt
+
+
+def get_generate_lvn_comments_prompt(
+        post_content: str,
+        pre_lv_comment: str,
+        attitude_type: Attitude,
+        generate_number: int
+) -> tuple[str, str]:
+    system_prompt = """
+    """
+
+    user_prompt = """
+    """
 
     return system_prompt, user_prompt
