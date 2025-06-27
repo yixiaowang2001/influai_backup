@@ -59,7 +59,8 @@ def expand_lv1_comments(
         post_content: str,
         attitude_type: Attitude,
         seed_comments: list,
-        expand_count: int
+        expand_count: int,
+        retry: int = 5
 ):
     system_prompt, user_prompt = get_expand_lv1_comments_prompt(
         persona=persona,
@@ -69,15 +70,19 @@ def expand_lv1_comments(
         expand_count=expand_count
     )
 
-    response = chat(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        model_name="qwen-plus",
-        temperature=1.99,
-        max_tokens=8192
-    )
+    for i in range(retry):
+        response = chat(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model_name="qwen-plus",
+            temperature=1.99,
+            max_tokens=8192
+        )
+        json_response = parse_json_response(response, {})
+        if json_response and "expansions" in json_response.keys():
+            return json_response["expansions"]
 
-    print(response)
+    return []
 
 
 def generate_lvn_comments(
@@ -86,8 +91,9 @@ def generate_lvn_comments(
         attitude_type: Attitude,
         pre_lv_comment: str,
         expand_count: int,
-        is_human_user: bool
-):
+        is_human_user: bool,
+        retry: int = 5
+) -> list[str]:
     system_prompt, user_prompt = get_generate_lvn_comments_prompt(
         persona=persona,
         post_content=post_content,
@@ -97,12 +103,16 @@ def generate_lvn_comments(
         is_human_user=is_human_user
     )
 
-    response = chat(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        model_name="qwen-plus",
-        temperature=1.99,
-        max_tokens=8192
-    )
+    for i in range(retry):
+        response = chat(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model_name="qwen-plus",
+            temperature=1.99,
+            max_tokens=4096
+        )
+        json_response = parse_json_response(response, {})
+        if json_response and "nested" in json_response.keys():
+            return json_response["nested"]
 
-    print(response)
+    return []

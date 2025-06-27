@@ -3,10 +3,8 @@
 ## TODO
 - expand_lv1_comments
   - prompt调整
-  - 工程（解析）
 - generate_lvn_comments
   - prompt调整
-  - 工程（解析）
 - comments_related，logger添加
 - 评论点赞逻辑
 - 后端
