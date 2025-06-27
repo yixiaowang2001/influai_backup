@@ -5,7 +5,6 @@
   - prompt调整
 - generate_lvn_comments
   - prompt调整
-- comments_related，logger添加
 - 评论点赞逻辑
 - 后端
 

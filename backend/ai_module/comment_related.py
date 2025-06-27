@@ -26,7 +26,7 @@ def generate_lv1_comments(
         each_type_n=each_type_n,
         history_posts=history_posts,
     )
-
+    logger.info("Generating lv1 comments")
     json_response = {"comments": []}
     for i in range(retry):
         response = chat(
@@ -39,6 +39,7 @@ def generate_lv1_comments(
         json_response = parse_json_response(response, {})
         if json_response and "comments" in json_response.keys():
             break
+        logger.warning(f"Failed to generate lv1 comments, retrying for {i+2} times")
 
     comments_by_attitude = Attitude.create_dict()
     comments = json_response["comments"]
@@ -51,6 +52,11 @@ def generate_lv1_comments(
             comments_by_attitude[attitude].append(content)
         except Exception as e:
             continue
+    if all(not v for v in comments_by_attitude.values()):
+        logger.warning(f"Failed to generate lv1 comments, no comments found")
+    else:
+        logger.info("Generated lv1 comments")
+
     return comments_by_attitude
 
 
@@ -62,6 +68,7 @@ def expand_lv1_comments(
         expand_count: int,
         retry: int = 5
 ):
+    logger.info(f"Expanding lv1 comments: {attitude_type}")
     system_prompt, user_prompt = get_expand_lv1_comments_prompt(
         persona=persona,
         post_content=post_content,
@@ -80,7 +87,10 @@ def expand_lv1_comments(
         )
         json_response = parse_json_response(response, {})
         if json_response and "expansions" in json_response.keys():
+            logger.info(f"lv1 comments expanded: {attitude_type}")
             return json_response["expansions"]
+        logger.warning(f"Failed to expand lv1 comments for {attitude_type}, retrying for {i+2} times")
+    logger.warning(f"Failed to expand lv1 comments for {attitude_type}, no comments found")
 
     return []
 
@@ -94,6 +104,7 @@ def generate_lvn_comments(
         is_human_user: bool,
         retry: int = 5
 ) -> list[str]:
+    logger.info(f"Generating lvn comments: attitude_type - {attitude_type}, pre_lv_comment - {pre_lv_comment[:20]}")
     system_prompt, user_prompt = get_generate_lvn_comments_prompt(
         persona=persona,
         post_content=post_content,
@@ -113,6 +124,11 @@ def generate_lvn_comments(
         )
         json_response = parse_json_response(response, {})
         if json_response and "nested" in json_response.keys():
+            logger.info(f"lvn comments expanded: attitude_type - {attitude_type}, pre_lv_comment - {pre_lv_comment[:20]}")
             return json_response["nested"]
+        logger.warning(f"Failed to generate lvn comments for - {attitude_type}, pre_lv_comment - {pre_lv_comment[:20]}, "
+                       f"retrying for {i+2} times")
+    logger.warning(f"Failed to generate lvn comments for - {attitude_type}, pre_lv_comment - {pre_lv_comment}, "
+                   f"no comments found")
 
     return []
