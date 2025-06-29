@@ -11,7 +11,8 @@ def predict_post_stats(
         follower_count: int,
         post_content: str,
         history_posts: list = None,
-):
+        retry: int = 5
+) -> dict:
     logger.info("Starting post stats prediction")
     system_prompt, user_prompt = get_predict_post_stats_prompt(
         persona=persona,
@@ -20,24 +21,30 @@ def predict_post_stats(
         history_posts=history_posts,
     )
     logger.debug(f"User prompt length: {len(user_prompt)}; system prompt length: {len(system_prompt)}")
-    response = chat(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        model_name="qwen-turbo",
-        temperature=0.1,
-        max_tokens=256
-    )
-    default_response = {
+
+    parsed = {
         "pred_new_follower_count": 0,
         "pred_comment_count": 0,
         "pred_like_count": 0
     }
 
-    if not response:
-        logger.warning("Using default response due to empty LLM output (predict_post_stats)")
-        return default_response
-    parsed = parse_json_response(response, default_response)
-    logger.info(f"Successfully get response (predict_post_stats)")
+    for i in range(retry):
+        response = chat(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            model_name="qwen-turbo",
+            temperature=0.1,
+            max_tokens=256
+        )
+        parsed = parse_json_response(response, parsed)
+        if parsed["pred_comment_count"] != 0:
+            break
+        logger.warning(f"Failed to predict post stats, retrying for {i+1} time")
+    if parsed["pred_comment_count"] != 0:
+        logger.warning(f"Failed to predict post stats, comment count is 0")
+    else:
+        logger.info(f"Successfully get response (predict_post_stats)")
+
     return parsed
 
 
