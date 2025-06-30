@@ -48,7 +48,6 @@ def get_predict_post_stats_prompt(
 def get_generate_lv1_comments_prompt(
         persona: str,
         post_content: str,
-        each_type_n: int,
         history_posts: list = None,
 ) -> tuple[str, str]:
     system_prompt = """**角色**：社交媒体评论生成AI，专门为明星氛围打造AI粉丝评论  
@@ -91,16 +90,28 @@ def get_generate_lv1_comments_prompt(
 {
   "comments": [
     {
-      "attitude": "狂热",
-      "content": "卧槽神仙下凡了属于是！！！"
+      "attitude": "极差",
+      "content": "废物😅"
     },
     {
       "attitude": "不友善",
       "content": "逆天主播我的建议还是别"
     },
     {
-      "attitude": "极差",
-      "content": "废物😅"
+      "attitude": "中立",
+      "content": "新风格还挺大胆"
+    },
+    {
+      "attitude": "友善",
+      "content": "还不错诶！"
+    },
+    {
+      "attitude": "极好",
+      "content": "终于上线啦，等得好辛苦🥺"
+    },
+    {
+      "attitude": "狂热",
+      "content": "卧槽神仙下凡了属于是！！！"
     },
   ],
   }
