@@ -182,6 +182,7 @@ def get_expand_lv1_comments_prompt(
 **用户人设**: {persona}
 **目标帖子**：“{post_content}”
 **原始态度**: {str(attitude_type)}
+**生成数量**: {expand_count}
 **种子评论组**（共{len(seed_comments)}条）：
 {seed_comments}
 

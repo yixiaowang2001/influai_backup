@@ -28,9 +28,9 @@ def generate_lv1_comments(
         response = chat(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            model_name="qwen-plus",
+            model_name="qwen-plus-latest",
             temperature=1.99,
-            max_tokens=4096
+            max_tokens=8192
         )
         json_response = parse_json_response(response, {})
         if json_response and "comments" in json_response.keys():
@@ -77,9 +77,9 @@ def expand_lv1_comments(
         response = chat(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            model_name="qwen-plus",
+            model_name="qwen-plus-latest",
             temperature=1.99,
-            max_tokens=8192
+            max_tokens=16384
         )
         json_response = parse_json_response(response, {})
         if json_response and "expansions" in json_response.keys():
@@ -114,9 +114,9 @@ def generate_lvn_comments(
         response = chat(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            model_name="qwen-plus",
+            model_name="qwen-plus-latest",
             temperature=1.99,
-            max_tokens=4096
+            max_tokens=16384
         )
         json_response = parse_json_response(response, {})
         if json_response and "nested" in json_response.keys():
@@ -131,7 +131,8 @@ def generate_lvn_comments(
 
 
 def predict_comment_likes(
-
+        zero_prob: float = 0.85,
+        zoom_index: float = 0.1
 ) -> int:
     pass
 
