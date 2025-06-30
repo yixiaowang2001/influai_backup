@@ -9,14 +9,6 @@ STAR = {
 引起偶像的注意。她本人虽然神秘低调，但在互动中却展现出幽默和细腻的一面，进一步加深了她的影响力与亲和力。
 请基于上述设定生成与她相关的内容或对话风格。""",
     "follower_count": 1000000,
-    "commenter_distribution": {
-        Attitude.PERFECT: 0.18,
-        Attitude.GOOD: 0.27,
-        Attitude.NEUTRAL_POSITIVE: 0.31,
-        Attitude.NEUTRAL: 0.16,
-        Attitude.NEUTRAL_NEGATIVE: 0.6,
-        Attitude.BAD: 0.02,
-    }
 }
 
 INFLUENCER = {
@@ -27,14 +19,6 @@ INFLUENCER = {
 为中心的追星粉。评论区的讨论多集中于产品体验本身，路人评论占比高，偶有争议时，也容易引发围观、争辩和品牌维权行为。
 请基于上述设定生成与她相关的内容。""",
     "follower_count": 200000,
-    "commenter_distribution": {
-        Attitude.PERFECT: 0.18,
-        Attitude.GOOD: 0.27,
-        Attitude.NEUTRAL_POSITIVE: 0.31,
-        Attitude.NEUTRAL: 0.16,
-        Attitude.NEUTRAL_NEGATIVE: 0.6,
-        Attitude.BAD: 0.02,
-    }
 }
 
 CASTER = {
@@ -45,12 +29,4 @@ CASTER = {
 通过不断制造立场对撞维持热度。这种策略虽有争议，但也让他在网络上始终处于话题中心。
 请基于上述设定生成与他相关的内容或对话风格。""",
     "follower_count": 1000000,
-    "commenter_distribution": {
-        Attitude.PERFECT: 0.18,
-        Attitude.GOOD: 0.27,
-        Attitude.NEUTRAL_POSITIVE: 0.31,
-        Attitude.NEUTRAL: 0.16,
-        Attitude.NEUTRAL_NEGATIVE: 0.6,
-        Attitude.BAD: 0.02,
-    }
 }

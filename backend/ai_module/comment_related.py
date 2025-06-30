@@ -14,7 +14,6 @@ logger = get_logger("backend.ai_module.comment_related")
 def generate_lv1_comments(
         persona: str,
         post_content: str,
-        commenter_distribution: dict,
         each_type_n: int,
         history_posts: list = None,
         retry: int = 5
@@ -22,7 +21,6 @@ def generate_lv1_comments(
     system_prompt, user_prompt = get_generate_lv1_comments_prompt(
         persona=persona,
         post_content=post_content,
-        commenter_distribution=commenter_distribution,
         each_type_n=each_type_n,
         history_posts=history_posts,
     )
