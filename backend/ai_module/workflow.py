@@ -1,6 +1,6 @@
 from post_related import predict_post_stats
 from comment_related import (
-    generate_lv1_comments,
+    generate_lv1_seeds,
     expand_lv1_comments,
     generate_lvn_comments,
     predict_comment_likes,
@@ -31,7 +31,7 @@ def workflow(
         print("Pre comment count = 0")
         return
 
-    lv1_comments = generate_lv1_comments(
+    lv1_comments = generate_lv1_seeds(
         persona=persona,
         post_content=post_content,
         commenter_distribution=commenter_distribution,

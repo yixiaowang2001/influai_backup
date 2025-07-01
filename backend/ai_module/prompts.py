@@ -45,7 +45,7 @@ def get_predict_post_stats_prompt(
     return system_prompt, user_prompt
 
 
-def get_generate_lv1_comments_prompt(
+def get_generate_lv1_seeds_prompt(
         persona: str,
         post_content: str,
         history_posts: list = None,

@@ -1,5 +1,5 @@
 from prompts import (
-    get_generate_lv1_comments_prompt,
+    get_generate_lv1_seeds_prompt,
     get_expand_lv1_comments_prompt,
     get_generate_lvn_comments_prompt,
 )
@@ -11,13 +11,13 @@ from backend.utils import get_logger
 logger = get_logger("backend.ai_module.comment_related")
 
 
-def generate_lv1_comments(
+def generate_lv1_seeds(
         persona: str,
         post_content: str,
         history_posts: list = None,
         retry: int = 5
 ) -> dict:
-    system_prompt, user_prompt = get_generate_lv1_comments_prompt(
+    system_prompt, user_prompt = get_generate_lv1_seeds_prompt(
         persona=persona,
         post_content=post_content,
         history_posts=history_posts,
