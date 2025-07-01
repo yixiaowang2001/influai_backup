@@ -1,1 +1,2 @@
 IS_DEBUG = False
+RETRY_COUNT = 5
