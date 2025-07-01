@@ -1,7 +1,7 @@
 from backend.utils import get_logger
-from llm import chat
-from llm_utils import parse_json_response
-from prompts import get_predict_post_stats_prompt
+from .llm import chat
+from .llm_utils import parse_json_response
+from .prompts import get_predict_post_stats_prompt
 
 logger = get_logger("backend.ai_module.post_related")
 
@@ -40,7 +40,7 @@ def predict_post_stats(
         if parsed["pred_comment_count"] != 0:
             break
         logger.warning(f"Failed to predict post stats, retrying for {i+1} time")
-    if parsed["pred_comment_count"] != 0:
+    if parsed["pred_comment_count"] == 0:
         logger.warning(f"Failed to predict post stats, comment count is 0")
     else:
         logger.info(f"Successfully get response (predict_post_stats)")

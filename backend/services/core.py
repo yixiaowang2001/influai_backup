@@ -1,6 +1,6 @@
 from backend.utils import get_logger
 from backend.data.test_data import INFLUENCER as USER
-from post_service import PostService
+from backend.services.post_service import PostService
 
 logger = get_logger("backend.services.core")
 
@@ -15,4 +15,5 @@ ps = PostService(
     user_template=template,
     history_posts=[]
 )
+ps.run()
 

@@ -5,9 +5,9 @@ from backend.ai_module import (
     generate_lv1_seeds,
     expand_lv1_comments
 )
-from backend.configs import RETRY_COUNT
+from backend.configs import RETRY_COUNT, MAX_COMMENTS_PER_REQUEST
 from backend.models import Attitude
-from .service_utils import rand_int
+from service_utils import rand_int
 from tqdm import tqdm
 
 logger = get_logger("backend.services.post_service")
@@ -57,27 +57,42 @@ class PostService:
         medium_num = rand_int(num / 3)
         long_num = num - short_num - medium_num
         num_list = [short_num, medium_num, long_num]
-
+        print(num_list)
         comments = []
 
         for i in range(3):
-            generate_comments = expand_lv1_comments(
-                persona=self.user_template["persona"],
-                post_content=self.post.post_content,
-                attitude_type=attitude,
-                seed_comments=self.lv1_seeds[attitude][i],
-                expand_count=num_list[i],
-                retry=RETRY_COUNT
-            )
-            comments.extend(generate_comments)
+            target_count = num_list[i]
+            generated_count = 0
+            attitude_comments = []
 
+            while generated_count < target_count:
+                current_batch = min(MAX_COMMENTS_PER_REQUEST, target_count - generated_count)
+                batch_comments = expand_lv1_comments(
+                    persona=self.user_template["persona"],
+                    post_content=self.post.post_content,
+                    attitude_type=attitude,
+                    seed_comments=self.lv1_seeds[attitude][i],
+                    expand_count=current_batch,
+                    retry=RETRY_COUNT
+                )
+                if not batch_comments:
+                    break
+                generated_count += len(batch_comments)
+                attitude_comments.extend(batch_comments)
+                if generated_count >= target_count * 2:
+                    break
+            if generated_count > target_count:
+                attitude_comments = attitude_comments[:target_count]
+            comments.extend(attitude_comments)
         return comments
 
     def run(self):
         self.basic_update()
 
         for att in tqdm(Attitude.create_dict().keys()):
-            comment_count = round(self.pred_comment_count * self.user_template["commenter_distribution"][att])
+            comment_count = round(self.pred_comment_count * self.user_template["commenter_distribution"][str(att)])
             self.comments.extend(self.expand_lv1_comments_by_attitude(att, comment_count))
 
+        print(self.pred_comment_count)
+        print(len(self.comments))
         print(self.comments)

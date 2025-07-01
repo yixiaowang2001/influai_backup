@@ -7,7 +7,7 @@ def get_predict_post_stats_prompt(
         post_content: str,
         history_posts: list = None
 ) -> tuple[str, str]:
-    system_prompt = """作为微博生态传播预测专家，你需要通过结构化思考生成真实互动数据。请严格遵循思考流程：
+    system_prompt = """作为微博生态传播预测专家，你需要通过结构化思考生成真实互动数据（新增关注、评论量、点赞量）。请严格遵循思考流程：
 
 ### 思考步骤
 1. **人设匹配分析**  

@@ -1,8 +1,10 @@
 # influai_backup
 
 ## TODO
-- 完成lv1 comment的后端
-- 数据库
+- comments成为comment类
+- 随机点赞数
+- 代码整理，增加logger
+- 数据库设计
 
 ## CoT
 - 维护一个AI用户的数据库，包含生成的userid，username，态度，创建时间，是否是粉丝。 
