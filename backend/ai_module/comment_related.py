@@ -1,12 +1,12 @@
-from .prompts import (
+from backend.models import Attitude
+from backend.utils import get_logger, rand_int
+from backend.ai_module.llm import chat
+from backend.ai_module.llm_utils import parse_json_response
+from backend.ai_module.prompts import (
     get_generate_lv1_seeds_prompt,
     get_expand_lv1_comments_prompt,
     get_generate_lvn_comments_prompt,
 )
-from .llm import chat
-from .llm_utils import parse_json_response
-from backend.models import Attitude
-from backend.utils import get_logger
 
 logger = get_logger("backend.ai_module.comment_related")
 
@@ -132,10 +132,14 @@ def generate_lvn_comments(
 
 
 def predict_comment_likes(
-        zero_prob: float = 0.85,
-        zoom_index: float = 0.1
+        follower_count: int,
+        float_range: float,
+        zoom_index: float
 ) -> int:
-    pass
+    return rand_int(
+        number=follower_count * zoom_index,
+        float_range=float_range,
+    )
 
 
 def should_generate_lv2(
@@ -148,3 +152,7 @@ def predict_lv2_count(
 
 ) -> int:
     pass
+
+
+if __name__ == '__main__':
+    print(predict_comment_likes(10000, 0.5, 0.001))

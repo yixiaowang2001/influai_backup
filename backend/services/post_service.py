@@ -1,14 +1,16 @@
-from backend.models import Post
-from backend.utils import get_logger
+from tqdm import tqdm
+
 from backend.ai_module import (
     predict_post_stats,
     generate_lv1_seeds,
-    expand_lv1_comments
+    expand_lv1_comments,
+    predict_comment_likes
 )
 from backend.configs import RETRY_COUNT, MAX_COMMENTS_PER_REQUEST
 from backend.models import Attitude, Comment
-from service_utils import rand_int
-from tqdm import tqdm
+from backend.models import Post
+from backend.utils import get_logger
+from backend.utils import rand_int
 
 logger = get_logger("backend.services.post_service")
 
@@ -114,7 +116,12 @@ class PostService:
                     comment_content=ac,
                     comment_user_type=0,
                     comment_attitude=attitude,
-                    comment_level=1
+                    comment_level=1,
+                    comment_likes=predict_comment_likes(
+                        follower_count=self.user_template["follower_count"],
+                        float_range=0.9,
+                        zoom_index=0.01
+                    )
                 )
                 comments.append(comment)
         return comments
