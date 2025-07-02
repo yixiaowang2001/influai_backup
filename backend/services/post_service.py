@@ -39,6 +39,7 @@ class PostService:
         result = {}
         fractional_parts = []
         allocated = 0
+
         for key, ratio in ratios.items():
             exact_value = total * ratio / total_ratio
             integer_part = int(exact_value)
