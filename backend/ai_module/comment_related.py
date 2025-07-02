@@ -34,7 +34,7 @@ def generate_lv1_seeds(
         )
         json_response = parse_json_response(response, {})
         if json_response and "comments" in json_response.keys():
-            if len(json_response["comments"]) != 18:
+            if len(json_response["comments"]) == 18:
                 break
         logger.warning(f"Failed to generate lv1 comments, retrying for {i+1} time")
 

@@ -6,7 +6,7 @@ from backend.ai_module import (
     expand_lv1_comments
 )
 from backend.configs import RETRY_COUNT, MAX_COMMENTS_PER_REQUEST
-from backend.models import Attitude
+from backend.models import Attitude, Comment
 from service_utils import rand_int
 from tqdm import tqdm
 
@@ -21,7 +21,7 @@ class PostService:
             history_posts: list
     ):
         self.post = Post(
-            post_content=content
+            post_content=content,
         )
         self.user_template = user_template
         self.history_posts = history_posts
@@ -52,12 +52,11 @@ class PostService:
             self,
             attitude: Attitude,
             num: int
-    ):
+    ) -> list:
         short_num = rand_int(num / 3)
         medium_num = rand_int(num / 3)
         long_num = num - short_num - medium_num
         num_list = [short_num, medium_num, long_num]
-        print(num_list)
         comments = []
 
         for i in range(3):
@@ -83,7 +82,15 @@ class PostService:
                     break
             if generated_count > target_count:
                 attitude_comments = attitude_comments[:target_count]
-            comments.extend(attitude_comments)
+
+            for ac in attitude_comments:
+                comment = Comment(
+                    comment_content=ac,
+                    comment_user_type=0,
+                    comment_attitude=attitude,
+                    comment_level=1
+                )
+                comments.append(comment)
         return comments
 
     def run(self):

@@ -8,5 +8,4 @@ class Post:
     post_id: int = None
     like_count: int = None
     comments: list = None
-    created_at: datetime = None
-    edited_at: datetime = None
+    created_at: datetime = datetime.now()

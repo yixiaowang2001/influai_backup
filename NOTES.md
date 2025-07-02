@@ -1,9 +1,10 @@
 # influai_backup
 
 ## TODO
-- comments成为comment类
+- 解决评论数最后总差一条的情况
 - 随机点赞数
 - 代码整理，增加logger
+- 测试（时间、token数量计算、成本计算）
 - 数据库设计
 
 ## CoT
