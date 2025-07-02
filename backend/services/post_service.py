@@ -12,7 +12,7 @@ from backend.models import Post
 from backend.utils import get_logger
 from backend.utils import rand_int
 
-logger = get_logger("backend.services.post_service")
+logger = get_logger(__name__)
 
 
 class PostService:
@@ -81,11 +81,15 @@ class PostService:
             attitude: Attitude,
             num: int
     ) -> list:
+        if num == 0:
+            logger.warning("No comments need to be expanded")
+            return []
         short_num = rand_int(num / 3)
         medium_num = rand_int(num / 3)
         long_num = num - short_num - medium_num
         num_list = [short_num, medium_num, long_num]
         comments = []
+        logger.debug(f"For {attitude}, num_list is {num_list}")
 
         for i in range(3):
             target_count = num_list[i]
@@ -103,6 +107,7 @@ class PostService:
                     retry=RETRY_COUNT
                 )
                 if not batch_comments:
+                    logger.warning("No batch_comments generated")
                     break
                 generated_count += len(batch_comments)
                 attitude_comments.extend(batch_comments)
@@ -111,6 +116,7 @@ class PostService:
             if generated_count > target_count:
                 attitude_comments = attitude_comments[:target_count]
 
+            logger.debug(f"For {attitude}, {len(attitude_comments)} comments generated")
             for ac in attitude_comments:
                 comment = Comment(
                     comment_content=ac,
@@ -128,11 +134,12 @@ class PostService:
 
     def run(self):
         self.basic_update()
+        logger.info("PostService initialized")
+        logger.info(f"Start to generate {self.pred_comment_count} comments...")
         comment_nums_by_attitude = self.distribute_comment_nums(total=self.pred_comment_count)
         for att in tqdm(Attitude.create_dict().keys()):
             comment_count = comment_nums_by_attitude[str(att)]
             self.comments.extend(self.expand_lv1_comments_by_attitude(att, comment_count))
+        logger.info(f"{len(self.comments)} comments generated.")
 
-        print(self.pred_comment_count)
-        print(len(self.comments))
         print(self.comments)

@@ -3,7 +3,7 @@ from .llm import chat
 from .llm_utils import parse_json_response
 from .prompts import get_predict_post_stats_prompt
 
-logger = get_logger("backend.ai_module.post_related")
+logger = get_logger(__name__)
 
 
 def predict_post_stats(

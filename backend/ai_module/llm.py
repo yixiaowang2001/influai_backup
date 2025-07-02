@@ -3,7 +3,7 @@ from openai import OpenAI
 from backend.configs import API_KEY
 from backend.utils import get_logger
 
-logger = get_logger("backend.ai_module.llm")
+logger = get_logger(__name__)
 client = OpenAI(
     api_key=API_KEY,
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"

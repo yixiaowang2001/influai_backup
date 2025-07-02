@@ -8,7 +8,7 @@ from backend.ai_module.prompts import (
     get_generate_lvn_comments_prompt,
 )
 
-logger = get_logger("backend.ai_module.comment_related")
+logger = get_logger(__name__)
 
 
 def generate_lv1_seeds(
@@ -22,7 +22,7 @@ def generate_lv1_seeds(
         post_content=post_content,
         history_posts=history_posts,
     )
-    logger.info("Generating lv1 comments")
+    logger.info("Generating lv1 seed comments")
     json_response = {"comments": []}
     for i in range(retry):
         response = chat(
@@ -36,7 +36,7 @@ def generate_lv1_seeds(
         if json_response and "comments" in json_response.keys():
             if len(json_response["comments"]) == 18:
                 break
-        logger.warning(f"Failed to generate lv1 comments, retrying for {i+1} time")
+        logger.warning(f"Failed to generate lv1 seed comments, retrying for {i+1} time")
 
     comments_by_attitude = Attitude.create_dict()
     comments = json_response["comments"]
@@ -50,7 +50,7 @@ def generate_lv1_seeds(
         except Exception as e:
             continue
     if all(not v for v in comments_by_attitude.values()):
-        logger.warning(f"Failed to generate lv1 comments, no comments found")
+        logger.warning(f"Failed to generate lv1 seed comments, no comments found")
     else:
         logger.info("Generated lv1 comments")
 

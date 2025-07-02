@@ -1,14 +1,14 @@
-from backend.data.test_data import INFLUENCER as USER
+from backend.data.test_data import CASTER as USER
 from backend.services.post_service import PostService
 from backend.utils import get_logger
 
-logger = get_logger("backend.services.core")
+logger = get_logger(__name__)
 
 template = USER
 
-post = """最让我心被掏空的是那些质疑的目光和随时燃起的评论区战火。每一次推荐，背脊都下意识绷紧，预演着下一秒会砸过来的“又是广告吧？”或者“收了
-多少钱？”每一次风波我都沉默，把解释咽下去，维持那个冰冷的“工具人”体面。连坦诚标注都成了奢侈，只因为害怕那点脆弱的信任彻底崩解。我原以为爱的是分
-享好物，现在却被困在数据和信任的夹缝里动弹不得。血液里流的，好像不再是当初看见一抹好唇色时的悸动，而是累，深不见底、连眼眶都涩得掉不下泪的心累。"""
+post = """老胡像大家一样痛恨虐猫者，支持对他们做出应有的惩罚。我只是建议，在惩罚之后，舆论不要长期“追杀”他们，其实，我觉得对各种犯了错，哪怕刑满释放人员，舆论都不要“追杀”，让法律和规定，以及那些人生活的周围环境决定他们之后的命运，尤其是对于非公众人物，非官员，要给他们悔过自新的机会。
+
+不要让我们的社会过度严厉，各种处罚应尽量依法依规，不附加，尤其是不长期附加法律法规没有要求的额外处罚，这是老胡的一贯主张。对老胡的观点可以反对，但老胡必须申明的是，我决无冒犯任何群体、包括爱猫和动保群体的意思[作揖][作揖]      #招聘单位回应考生确系虐猫当事人#    #热点解读#"""
 
 ps = PostService(
     content=post,
