@@ -30,6 +30,31 @@ class PostService:
         self.pred_comment_count = None
         self.comments = []
 
+    def distribute_comment_nums(
+            self,
+            total: int,
+    ) -> dict:
+        ratios = self.user_template["commenter_distribution"]
+        total_ratio = sum(ratios.values())
+        result = {}
+        fractional_parts = []
+        allocated = 0
+        for key, ratio in ratios.items():
+            exact_value = total * ratio / total_ratio
+            integer_part = int(exact_value)
+            result[key] = integer_part
+            allocated += integer_part
+            fractional_parts.append((exact_value - integer_part, key))
+
+        remaining = total - allocated
+        if remaining > 0:
+            fractional_parts.sort(key=lambda x: x[0], reverse=True)
+            for i in range(remaining):
+                _, key = fractional_parts[i]
+                result[key] += 1
+
+        return result
+
     def basic_update(self):
         stats = predict_post_stats(
             persona=self.user_template["persona"],
@@ -95,9 +120,9 @@ class PostService:
 
     def run(self):
         self.basic_update()
-
+        comment_nums_by_attitude = self.distribute_comment_nums(total=self.pred_comment_count)
         for att in tqdm(Attitude.create_dict().keys()):
-            comment_count = round(self.pred_comment_count * self.user_template["commenter_distribution"][str(att)])
+            comment_count = comment_nums_by_attitude[str(att)]
             self.comments.extend(self.expand_lv1_comments_by_attitude(att, comment_count))
 
         print(self.pred_comment_count)
