@@ -28,3 +28,9 @@
 - AI筛选lv1评论（筛选出5条情绪最强烈：最好的、最坏的），进行硬编码限制
 - 丢给AI，让AI打分，让AI决定点赞数；根据成本，实际体验，给特别高的高赞数
 - 根据AI生成的评论，生成lv2
+
+## Notes
+生成requirements.txt
+```bash
+pipreqs . --encoding=utf-8 --force
+```
