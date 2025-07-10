@@ -39,7 +39,7 @@ def predict_post_stats(
         parsed = parse_json_response(response, parsed)
         if parsed["pred_comment_count"] != 0:
             break
-        logger.warning(f"Failed to predict post stats, retrying for {i+1} time")
+        logger.warning(f"Failed to predict post stats, retrying for {i + 1} time")
     if parsed["pred_comment_count"] == 0:
         logger.warning(f"Failed to predict post stats, comment count is 0")
     else:

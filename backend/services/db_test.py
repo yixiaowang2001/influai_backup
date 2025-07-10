@@ -1,12 +1,44 @@
-from backend.models import Post as PostModel
+from backend.database.crud import (
+    create_post,
+    create_comment,
+    create_ai_user,
+    get_posts
+)
+from backend.database.database import get_db_session
 from backend.database.init_db import init_database
-from backend.database.crud import *
+from backend.models import (
+    Post,
+    Comment,
+    AIUser,
+    Attitude
+)
 
-db = init_database()
+init_database()
 
-# 创建 dataclass 对象
-new_post = PostModel(post_content="今天天气真好！")
+db = get_db_session()
 
-# 保存到数据库
-db_post = create_post(db, new_post)
-print(f"创建的帖子ID: {db_post.post_id}")
+new_post = Post(
+    post_content="今天天气真好！"
+)
+
+create_post = create_post(db, new_post)
+
+new_comment = Comment(
+    comment_content="非常好！",
+    comment_user_type=0,
+    comment_attitude=Attitude.NEUTRAL,
+    comment_level=0,
+    comment_likes=0,
+    post_id=create_post.post_id
+)
+
+create_comment(db, new_comment)
+
+new_ai_user = AIUser(
+    username="王一笑"
+)
+
+create_ai_user(db, new_ai_user)
+print(get_posts(db))
+
+db.close()

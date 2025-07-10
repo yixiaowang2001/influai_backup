@@ -1,5 +1,3 @@
-from backend.models import Attitude
-from backend.utils import get_logger, rand_int
 from backend.ai_module.llm import chat
 from backend.ai_module.llm_utils import parse_json_response
 from backend.ai_module.prompts import (
@@ -7,6 +5,8 @@ from backend.ai_module.prompts import (
     get_expand_lv1_comments_prompt,
     get_generate_lvn_comments_prompt,
 )
+from backend.models import Attitude
+from backend.utils import get_logger, rand_int
 
 logger = get_logger(__name__)
 
@@ -36,7 +36,7 @@ def generate_lv1_seeds(
         if json_response and "comments" in json_response.keys():
             if len(json_response["comments"]) == 18:
                 break
-        logger.warning(f"Failed to generate lv1 seed comments, retrying for {i+1} time")
+        logger.warning(f"Failed to generate lv1 seed comments, retrying for {i + 1} time")
 
     comments_by_attitude = Attitude.create_dict()
     comments = json_response["comments"]
@@ -86,7 +86,7 @@ def expand_lv1_comments(
         if json_response and "expansions" in json_response.keys():
             logger.info(f"lv1 comments expanded: {attitude_type}")
             return json_response["expansions"]
-        logger.warning(f"Failed to expand lv1 comments for {attitude_type}, retrying for {i+1} time")
+        logger.warning(f"Failed to expand lv1 comments for {attitude_type}, retrying for {i + 1} time")
     logger.warning(f"Failed to expand lv1 comments for {attitude_type}, no comments found")
 
     return []
@@ -121,10 +121,12 @@ def generate_lvn_comments(
         )
         json_response = parse_json_response(response, {})
         if json_response and "nested" in json_response.keys():
-            logger.info(f"lvn comments expanded: attitude_type - {attitude_type}, pre_lv_comment - {pre_lv_comment[:20]}")
+            logger.info(
+                f"lvn comments expanded: attitude_type - {attitude_type}, pre_lv_comment - {pre_lv_comment[:20]}")
             return json_response["nested"]
-        logger.warning(f"Failed to generate lvn comments for - {attitude_type}, pre_lv_comment - {pre_lv_comment[:20]}, "
-                       f"retrying for {i+1} time")
+        logger.warning(
+            f"Failed to generate lvn comments for - {attitude_type}, pre_lv_comment - {pre_lv_comment[:20]}, "
+            f"retrying for {i + 1} time")
     logger.warning(f"Failed to generate lvn comments for - {attitude_type}, pre_lv_comment - {pre_lv_comment}, "
                    f"no comments found")
 

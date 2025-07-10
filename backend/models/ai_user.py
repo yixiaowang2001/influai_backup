@@ -6,9 +6,9 @@ from .enums import Attitude
 
 @dataclass
 class AIUser:
-    user_id: int
     username: str
     avatar_path: str = ""
+    user_id: int = None
     history_comments: list = None
     created_at: datetime = None
     attitude_value: float = 0.0

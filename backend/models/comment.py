@@ -10,6 +10,7 @@ class Comment:
     comment_user_type: int
     comment_attitude: Attitude
     comment_level: int
+    post_id: int
     comment_likes: int = 0
     comment_id: str = None
     comment_user_id: str = None
