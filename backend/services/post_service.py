@@ -7,10 +7,25 @@ from backend.ai_module import (
     predict_comment_likes
 )
 from backend.configs import RETRY_COUNT, MAX_COMMENTS_PER_REQUEST
+from backend.database import database
 from backend.models import Attitude, Comment
 from backend.models import Post
 from backend.utils import get_logger
 from backend.utils import rand_int
+from backend.database.crud import (
+    create_post,
+    create_comment,
+    create_ai_user,
+    get_posts
+)
+from backend.database.database import get_db_session
+from backend.database.init_db import init_database
+from backend.models import (
+    Post,
+    Comment,
+    AIUser,
+    Attitude
+)
 
 logger = get_logger(__name__)
 
@@ -20,13 +35,15 @@ class PostService:
             self,
             content: str,
             user_template: dict,
-            history_posts: list
+            history_posts: list,
+            db,
     ):
         self.post = Post(
             post_content=content,
         )
         self.user_template = user_template
         self.history_posts = history_posts
+        self.db = db
         self.lv1_seeds = None
         self.new_follower_count = None
         self.pred_comment_count = None
@@ -134,12 +151,19 @@ class PostService:
 
     def run(self):
         self.basic_update()
+        post = create_post(self.db, self.post)
+
         logger.info("PostService initialized")
         logger.info(f"Start to generate {self.pred_comment_count} comments...")
         comment_nums_by_attitude = self.distribute_comment_nums(total=self.pred_comment_count)
         for att in tqdm(Attitude.create_dict().keys()):
             comment_count = comment_nums_by_attitude[str(att)]
-            self.comments.extend(self.expand_lv1_comments_by_attitude(att, comment_count))
+            expanded_comments = self.expand_lv1_comments_by_attitude(att, comment_count)
+            for comment in expanded_comments:
+                comment.post_id = post.post_id
+                self.comments.append(comment)
+                create_comment(self.db, comment)
+
         logger.info(f"{len(self.comments)} comments generated.")
 
         print(self.comments)
