@@ -36,23 +36,22 @@ def predict_post_stats(
             temperature=0.1,
             max_tokens=256
         )
+        
+        if not response:
+            logger.warning(f"Received empty response for post stats prediction, attempt {i + 1}")
+            continue
+            
         parsed = parse_json_response(response, parsed)
         if parsed["pred_comment_count"] != 0:
             break
-        logger.warning(f"Failed to predict post stats, retrying for {i + 1} time")
+        logger.warning(f"Failed to predict post stats, retrying attempt {i + 1}")
     if parsed["pred_comment_count"] == 0:
         logger.warning(f"Failed to predict post stats, comment count is 0")
     else:
-        logger.info(f"Successfully get response (predict_post_stats)")
+        logger.info(f"Successfully completed post stats prediction")
 
     return parsed
 
 
 if __name__ == '__main__':
     post_content = ""
-
-    # print(predict_post_stats(
-    #     persona=GAMER["persona"],
-    #     follower_count=GAMER["follower_count"],
-    #     post_content=post_content,
-    # ))
