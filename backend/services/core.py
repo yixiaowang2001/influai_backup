@@ -29,12 +29,14 @@ init_database()
 
 db = get_db_session()
 
+history_posts = get_posts(db)
+
 logger.info("Initialized database")
 
 ps = PostService(
     content=post,
     user_template=template,
-    history_posts=[],
+    history_posts=history_posts,
     db=db
 )
 ps.run()
