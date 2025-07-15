@@ -27,11 +27,14 @@ post = """老胡像大家一样痛恨虐猫者，支持对他们做出应有的�
 
 init_database()
 
+db = get_db_session()
+
 logger.info("Initialized database")
 
 ps = PostService(
     content=post,
     user_template=template,
-    history_posts=[]
+    history_posts=[],
+    db=db
 )
 ps.run()
