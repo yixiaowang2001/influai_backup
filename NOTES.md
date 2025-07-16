@@ -1,8 +1,6 @@
 # influai_backup
 
 ## TODO
-- 创建帖子和评论加入数据库
-  - 测试
 - 历史帖子逻辑
   - format历史帖子
 - AI用户初始化
