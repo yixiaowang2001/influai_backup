@@ -7,6 +7,16 @@ from backend.database.models import Post as PostModel, Comment as CommentModel, 
 
 
 def create_post(db: Session, post: PostModel) -> models.Post:
+    """
+    创建新帖子
+    
+    Args:
+        db: 数据库会话
+        post: 帖子模型对象
+        
+    Returns:
+        models.Post: 创建的帖子对象
+    """
     db_post = models.Post(
         post_content=post.post_content,
         like_count=post.like_count or 0,
@@ -16,6 +26,21 @@ def create_post(db: Session, post: PostModel) -> models.Post:
     db.commit()
     db.refresh(db_post)
     return db_post
+
+
+def get_posts(db: Session, skip: int = 0, limit: int = 100) -> List[models.Post]:
+    """
+    获取帖子列表
+    
+    Args:
+        db: 数据库会话
+        skip: 跳过的记录数
+        limit: 限制返回的记录数
+        
+    Returns:
+        List[models.Post]: 帖子列表
+    """
+    return db.query(models.Post).offset(skip).limit(limit).all()
 
 
 def get_latest_n_posts(db: Session, n: int) -> List[models.Post]:
@@ -33,6 +58,16 @@ def get_latest_n_posts(db: Session, n: int) -> List[models.Post]:
 
 
 def create_ai_user(db: Session, ai_user: AIUserModel) -> models.AIUser:
+    """
+    创建AI用户
+    
+    Args:
+        db: 数据库会话
+        ai_user: AI用户模型对象
+        
+    Returns:
+        models.AIUser: 创建的AI用户对象
+    """
     db_ai_user = models.AIUser(
         username=ai_user.username,
         avatar_path=ai_user.avatar_path,
@@ -45,11 +80,31 @@ def create_ai_user(db: Session, ai_user: AIUserModel) -> models.AIUser:
     return db_ai_user
 
 
-def get_ai_user(db: Session, user_id: int) -> Optional[models.AIUser]:
+def get_ai_user(db: Session, user_id: str) -> Optional[models.AIUser]:
+    """
+    根据用户ID获取AI用户
+    
+    Args:
+        db: 数据库会话
+        user_id: 用户ID（字符串类型）
+        
+    Returns:
+        Optional[models.AIUser]: AI用户对象，如果不存在则返回None
+    """
     return db.query(models.AIUser).filter(models.AIUser.user_id == user_id).first()
 
 
 def create_comment(db: Session, comment: CommentModel) -> models.Comment:
+    """
+    创建评论
+    
+    Args:
+        db: 数据库会话
+        comment: 评论模型对象
+        
+    Returns:
+        models.Comment: 创建的评论对象
+    """
     db_comment = models.Comment(
         comment_content=comment.comment_content,
         comment_user_type=comment.comment_user_type,
@@ -58,7 +113,8 @@ def create_comment(db: Session, comment: CommentModel) -> models.Comment:
         master_comment_id=comment.master_comment_id,
         created_at=comment.created_at,
         send_at=comment.send_at,
-        post_id=comment.post_id
+        post_id=comment.post_id,
+        ai_user_id=comment.comment_user_id
     )
     db.add(db_comment)
     db.commit()
@@ -67,4 +123,14 @@ def create_comment(db: Session, comment: CommentModel) -> models.Comment:
 
 
 def get_comments_by_post(db: Session, post_id: int) -> List[models.Comment]:
+    """
+    根据帖子ID获取评论列表
+    
+    Args:
+        db: 数据库会话
+        post_id: 帖子ID
+        
+    Returns:
+        List[models.Comment]: 评论列表
+    """
     return db.query(models.Comment).filter(models.Comment.post_id == post_id).all()

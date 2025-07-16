@@ -1,8 +1,19 @@
 import json
 import re
+from typing import Any, Dict
 
 
-def parse_json_response(response, default_output):
+def parse_json_response(response: str, default_output: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    解析AI响应的JSON格式
+    
+    Args:
+        response: AI响应字符串
+        default_output: 默认输出格式
+        
+    Returns:
+        Dict[str, Any]: 解析后的JSON对象
+    """
     try:
         result = json.loads(response)
         if isinstance(result, dict):

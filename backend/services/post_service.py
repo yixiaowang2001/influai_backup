@@ -1,3 +1,4 @@
+from typing import List, Dict, Any
 from tqdm import tqdm
 
 from backend.ai_module import (
@@ -30,12 +31,22 @@ logger = get_logger(__name__)
 
 
 class PostService:
+    """帖子服务类，负责处理帖子的创建和评论生成"""
+    
     def __init__(
             self,
             content: str,
-            user_template: dict,
+            user_template: Dict[str, Any],
             db,
     ):
+        """
+        初始化帖子服务
+        
+        Args:
+            content: 帖子内容
+            user_template: 用户模板配置
+            db: 数据库会话
+        """
         self.post = Post(
             post_content=content,
         )
@@ -50,7 +61,16 @@ class PostService:
     def distribute_comment_nums(
             self,
             total: int,
-    ) -> dict:
+    ) -> Dict[str, int]:
+        """
+        根据用户模板分配评论数量
+        
+        Args:
+            total: 总评论数
+            
+        Returns:
+            Dict[str, int]: 各态度类型的评论数量分布
+        """
         ratios = self.user_template["commenter_distribution"]
         total_ratio = sum(ratios.values())
         result = {}
@@ -73,11 +93,12 @@ class PostService:
 
         return result
 
-    def basic_update(self):
+    def basic_update(self) -> None:
+        """执行基础更新操作，包括预测统计数据和生成种子评论"""
         self.history_posts = format_history_posts(get_latest_n_posts(
             db=self.db,
             n=3
-        ))
+        ), 3)
         stats = predict_post_stats(
             persona=self.user_template["persona"],
             follower_count=self.user_template["follower_count"],
@@ -99,16 +120,26 @@ class PostService:
             self,
             attitude: Attitude,
             num: int
-    ) -> list:
+    ) -> List[Comment]:
+        """
+        根据态度类型扩展一级评论
+        
+        Args:
+            attitude: 态度类型
+            num: 评论数量
+            
+        Returns:
+            List[Comment]: 扩展后的评论列表
+        """
         if num == 0:
-            logger.warning("No comments need to be expanded")
+            logger.warning("无需扩展评论")
             return []
         short_num = rand_int(num / 3)
         medium_num = rand_int(num / 3)
         long_num = num - short_num - medium_num
         num_list = [short_num, medium_num, long_num]
         comments = []
-        logger.debug(f"For {attitude}, num_list is {num_list}")
+        logger.debug(f"对于{attitude}，数量列表为{num_list}")
 
         for i in range(3):
             target_count = num_list[i]
@@ -126,7 +157,7 @@ class PostService:
                     retry=RETRY_COUNT
                 )
                 if not batch_comments:
-                    logger.warning("No batch_comments generated")
+                    logger.warning("未生成批量评论")
                     break
                 generated_count += len(batch_comments)
                 attitude_comments.extend(batch_comments)
@@ -135,7 +166,7 @@ class PostService:
             if generated_count > target_count:
                 attitude_comments = attitude_comments[:target_count]
 
-            logger.debug(f"For {attitude}, {len(attitude_comments)} comments generated")
+            logger.debug(f"对于{attitude}，生成了{len(attitude_comments)}条评论")
             for ac in attitude_comments:
                 comment = Comment(
                     comment_content=ac,
@@ -151,12 +182,13 @@ class PostService:
                 comments.append(comment)
         return comments
 
-    def run(self):
+    def run(self) -> None:
+        """运行帖子服务，创建帖子并生成评论"""
         self.basic_update()
         post = create_post(self.db, self.post)
 
-        logger.info("PostService initialized")
-        logger.info(f"Start to generate {self.pred_comment_count} comments...")
+        logger.info("帖子服务已初始化")
+        logger.info(f"开始生成{self.pred_comment_count}条评论...")
         comment_nums_by_attitude = self.distribute_comment_nums(total=self.pred_comment_count)
         for att in tqdm(Attitude.create_dict().keys()):
             comment_count = comment_nums_by_attitude[str(att)]
@@ -166,6 +198,6 @@ class PostService:
                 self.comments.append(comment)
                 create_comment(self.db, comment)
 
-        logger.info(f"{len(self.comments)} comments generated.")
+        logger.info(f"生成了{len(self.comments)}条评论。")
 
         print(self.comments)

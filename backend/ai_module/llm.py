@@ -1,4 +1,5 @@
 import time
+from typing import Optional
 
 import openai
 from openai import OpenAI
@@ -22,6 +23,21 @@ def chat(
         max_retries: int = 3,
         retry_delay: float = 1.0
 ) -> str:
+    """
+    与AI模型进行对话
+    
+    Args:
+        system_prompt: 系统提示词
+        user_prompt: 用户提示词
+        model_name: 模型名称
+        temperature: 温度参数
+        max_tokens: 最大token数
+        max_retries: 最大重试次数
+        retry_delay: 重试延迟时间
+        
+    Returns:
+        str: AI回复内容
+    """
     last_error = None
     
     for attempt in range(max_retries + 1):
@@ -43,48 +59,48 @@ def chat(
             error_message = str(e)
             
             if 'data_inspection_failed' in error_message:
-                logger.warning(f"Content inspection failed on attempt {attempt + 1}: {error_message}")
+                logger.warning(f"第{attempt + 1}次尝试内容检查失败: {error_message}")
             elif 'invalid_request_error' in error_message:
-                logger.warning(f"Invalid request on attempt {attempt + 1}: {error_message}")
+                logger.warning(f"第{attempt + 1}次尝试请求无效: {error_message}")
             else:
-                logger.warning(f"Bad request error on attempt {attempt + 1}: {error_message}")
+                logger.warning(f"第{attempt + 1}次尝试请求错误: {error_message}")
             
             last_error = e
             if 'data_inspection_failed' in error_message:
-                logger.error(f"Content inspection failed, returning empty response: {error_message}")
+                logger.error(f"内容检查失败，返回空响应: {error_message}")
                 return ""
                 
         except openai.RateLimitError as e:
-            logger.warning(f"Rate limit exceeded on attempt {attempt + 1}: {str(e)}")
+            logger.warning(f"第{attempt + 1}次尝试超出速率限制: {str(e)}")
             last_error = e
             if attempt < max_retries:
                 sleep_time = retry_delay * (2 ** attempt)
-                logger.info(f"Waiting {sleep_time} seconds before retry...")
+                logger.info(f"等待{sleep_time}秒后重试...")
                 time.sleep(sleep_time)
                 
         except openai.APIConnectionError as e:
-            logger.warning(f"API connection error on attempt {attempt + 1}: {str(e)}")
+            logger.warning(f"第{attempt + 1}次尝试API连接错误: {str(e)}")
             last_error = e
             if attempt < max_retries:
                 time.sleep(retry_delay)
                 
         except openai.InternalServerError as e:
-            logger.warning(f"Internal server error on attempt {attempt + 1}: {str(e)}")
+            logger.warning(f"第{attempt + 1}次尝试服务器内部错误: {str(e)}")
             last_error = e
             if attempt < max_retries:
                 time.sleep(retry_delay)
                 
         except openai.AuthenticationError as e:
-            logger.error(f"Authentication error: {str(e)}")
+            logger.error(f"认证错误: {str(e)}")
             return ""
             
         except Exception as e:
-            logger.error(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
+            logger.error(f"第{attempt + 1}次尝试发生意外错误: {str(e)}")
             last_error = e
             if attempt < max_retries:
                 time.sleep(retry_delay)
     
-    logger.error(f"All attempts failed. Last error: {str(last_error)}")
+    logger.error(f"所有尝试都失败了。最后错误: {str(last_error)}")
     return ""
 
 

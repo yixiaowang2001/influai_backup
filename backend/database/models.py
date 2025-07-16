@@ -56,7 +56,7 @@ class Comment(Base):
     send_at = Column(DateTime, nullable=True)
 
     post_id = Column(Integer, ForeignKey("posts.post_id"), nullable=False)
-    ai_user_id = Column(Integer, ForeignKey("ai_users.user_id"), nullable=True)
+    ai_user_id = Column(String(36), ForeignKey("ai_users.user_id"), nullable=True)
 
     post = relationship("Post", back_populates="comments")
     ai_user = relationship("AIUser", back_populates="comments")
