@@ -180,4 +180,4 @@ class PostService:
 
         logger.info(f"生成了{len(self.comments)}条评论。")
 
-        print(self.comments)
+        logger.info(f"生成的评论详情: {self.comments}")

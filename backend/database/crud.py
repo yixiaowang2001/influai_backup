@@ -4,6 +4,9 @@ from sqlalchemy.orm import Session
 
 import backend.database.models as models
 from backend.database.models import Post as PostModel, Comment as CommentModel, AIUser as AIUserModel
+from backend.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 def create_post(db: Session, post: PostModel) -> models.Post:
@@ -17,6 +20,7 @@ def create_post(db: Session, post: PostModel) -> models.Post:
     Returns:
         models.Post: 创建的帖子对象
     """
+    logger.debug(f"开始创建帖子，内容长度: {len(post.post_content)}")
     db_post = models.Post(
         post_content=post.post_content,
         like_count=post.like_count or 0,
@@ -25,6 +29,7 @@ def create_post(db: Session, post: PostModel) -> models.Post:
     db.add(db_post)
     db.commit()
     db.refresh(db_post)
+    logger.info(f"成功创建帖子，ID: {db_post.post_id}")
     return db_post
 
 
@@ -68,6 +73,7 @@ def create_ai_user(db: Session, ai_user: AIUserModel) -> models.AIUser:
     Returns:
         models.AIUser: 创建的AI用户对象
     """
+    logger.debug(f"开始创建AI用户，用户名: {ai_user.username}")
     db_ai_user = models.AIUser(
         username=ai_user.username,
         avatar_path=ai_user.avatar_path,
@@ -77,6 +83,7 @@ def create_ai_user(db: Session, ai_user: AIUserModel) -> models.AIUser:
     db.add(db_ai_user)
     db.commit()
     db.refresh(db_ai_user)
+    logger.info(f"成功创建AI用户，ID: {db_ai_user.user_id}，用户名: {db_ai_user.username}")
     return db_ai_user
 
 
@@ -105,6 +112,7 @@ def create_comment(db: Session, comment: CommentModel) -> models.Comment:
     Returns:
         models.Comment: 创建的评论对象
     """
+    logger.debug(f"开始创建评论，内容长度: {len(comment.comment_content)}，态度: {comment.comment_attitude}")
     db_comment = models.Comment(
         comment_content=comment.comment_content,
         comment_user_type=comment.comment_user_type,
@@ -119,6 +127,7 @@ def create_comment(db: Session, comment: CommentModel) -> models.Comment:
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
+    logger.info(f"成功创建评论，ID: {db_comment.comment_id}，帖子ID: {db_comment.post_id}")
     return db_comment
 
 
