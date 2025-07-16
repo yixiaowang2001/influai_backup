@@ -3,6 +3,7 @@ import string
 from datetime import datetime
 from backend.database import models
 from backend.models.attitude import Attitude
+from backend.utils import distribute_by_ratio
 
 
 def init_ai_users(user_template: dict):
@@ -37,18 +38,8 @@ def init_ai_users(user_template: dict):
     # 根据commenter_distribution生成有态度倾向的用户
     commenter_distribution = user_template['commenter_distribution']
     
-    # 计算每种态度类型需要生成的用户数量
-    attitude_counts = {}
-    for attitude_name, ratio in commenter_distribution.items():
-        attitude_counts[attitude_name] = int(distributed_count * ratio)
-    
-    # 处理舍入误差，确保总数正确
-    total_distributed = sum(attitude_counts.values())
-    if total_distributed < distributed_count:
-        # 将剩余用户分配给比例最大的态度类型
-        remaining = distributed_count - total_distributed
-        max_ratio_attitude = max(commenter_distribution.items(), key=lambda x: x[1])[0]
-        attitude_counts[max_ratio_attitude] += remaining
+    # 使用工具方法计算每种态度类型需要生成的用户数量
+    attitude_counts = distribute_by_ratio(distributed_count, commenter_distribution)
     
     # 生成有态度倾向的用户
     for attitude_name, count in attitude_counts.items():
@@ -74,3 +65,5 @@ def init_ai_users(user_template: dict):
                 ai_users.append(ai_user)
 
     return ai_users
+
+

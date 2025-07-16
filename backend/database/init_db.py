@@ -21,9 +21,9 @@ def insert_init_data(user_template: dict) -> None:
             return
 
         # 初始化AI用户数据
-        init_ai_users = init_ai_users(100)
+        all_ai_users = init_ai_users(user_template)
 
-        for ai_user in init_ai_users:
+        for ai_user in all_ai_users:
             db.add(ai_user)
         db.commit()
 

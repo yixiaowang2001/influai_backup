@@ -11,7 +11,7 @@ from backend.configs import RETRY_COUNT, MAX_COMMENTS_PER_REQUEST
 from backend.database import database
 from backend.models import Attitude, Comment
 from backend.models import Post
-from backend.utils import get_logger, rand_int, format_history_posts
+from backend.utils import get_logger, rand_int, format_history_posts, distribute_by_ratio
 from backend.database.crud import (
     create_post,
     create_comment,
@@ -71,27 +71,7 @@ class PostService:
         Returns:
             Dict[str, int]: 各态度类型的评论数量分布
         """
-        ratios = self.user_template["commenter_distribution"]
-        total_ratio = sum(ratios.values())
-        result = {}
-        fractional_parts = []
-        allocated = 0
-
-        for key, ratio in ratios.items():
-            exact_value = total * ratio / total_ratio
-            integer_part = int(exact_value)
-            result[key] = integer_part
-            allocated += integer_part
-            fractional_parts.append((exact_value - integer_part, key))
-
-        remaining = total - allocated
-        if remaining > 0:
-            fractional_parts.sort(key=lambda x: x[0], reverse=True)
-            for i in range(remaining):
-                _, key = fractional_parts[i]
-                result[key] += 1
-
-        return result
+        return distribute_by_ratio(total, self.user_template["commenter_distribution"])
 
     def basic_update(self) -> None:
         """执行基础更新操作，包括预测统计数据和生成种子评论"""
