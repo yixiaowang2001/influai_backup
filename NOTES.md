@@ -1,8 +1,6 @@
 # influai_backup
 
 ## TODO
-- 历史帖子逻辑
-  - format历史帖子
 - AI用户初始化
 - 接口
 - 请求速度优化

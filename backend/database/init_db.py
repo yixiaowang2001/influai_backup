@@ -1,6 +1,7 @@
 from backend.database import models
 from backend.database.database import engine, Base, get_db_session
 from backend.utils import get_logger
+from backend.database.db_utils import init_ai_users
 
 logger = get_logger(__name__)
 
@@ -11,7 +12,7 @@ def create_tables() -> None:
     logger.info('数据库表已创建')
 
 
-def insert_init_data() -> None:
+def insert_init_data(user_template: dict) -> None:
     """插入初始数据"""
     db = get_db_session()
     try:
@@ -20,18 +21,7 @@ def insert_init_data() -> None:
             return
 
         # 初始化AI用户数据
-        init_ai_users = [
-            models.AIUser(
-                username="智能助手小王",
-                avatar_path="/avatars/ai_001.png",
-                attitude_value=0.8
-            ),
-            models.AIUser(
-                username="AI评论员",
-                avatar_path="/avatars/ai_002.png",
-                attitude_value=0.6
-            )
-        ]
+        init_ai_users = init_ai_users(100)
 
         for ai_user in init_ai_users:
             db.add(ai_user)
@@ -47,7 +37,7 @@ def insert_init_data() -> None:
         db.close()
 
 
-def init_database() -> bool:
+def init_database(user_template: dict) -> bool:
     """
     初始化数据库
     
@@ -56,7 +46,7 @@ def init_database() -> bool:
     """
     try:
         create_tables()
-        insert_init_data()
+        insert_init_data(user_template)
         logger.info("数据库初始化完成")
         return True
 
