@@ -10,13 +10,12 @@ from backend.configs import RETRY_COUNT, MAX_COMMENTS_PER_REQUEST
 from backend.database import database
 from backend.models import Attitude, Comment
 from backend.models import Post
-from backend.utils import get_logger
-from backend.utils import rand_int
+from backend.utils import get_logger, rand_int, format_history_posts
 from backend.database.crud import (
     create_post,
     create_comment,
     create_ai_user,
-    get_posts
+    get_latest_n_posts
 )
 from backend.database.database import get_db_session
 from backend.database.init_db import init_database
@@ -35,19 +34,18 @@ class PostService:
             self,
             content: str,
             user_template: dict,
-            history_posts: list,
             db,
     ):
         self.post = Post(
             post_content=content,
         )
         self.user_template = user_template
-        self.history_posts = history_posts
         self.db = db
         self.lv1_seeds = None
         self.new_follower_count = None
         self.pred_comment_count = None
         self.comments = []
+        self.history_posts = []
 
     def distribute_comment_nums(
             self,
@@ -76,6 +74,10 @@ class PostService:
         return result
 
     def basic_update(self):
+        self.history_posts = format_history_posts(get_latest_n_posts(
+            db=self.db,
+            n=3
+        ))
         stats = predict_post_stats(
             persona=self.user_template["persona"],
             follower_count=self.user_template["follower_count"],

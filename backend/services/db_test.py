@@ -2,7 +2,7 @@ from backend.database.crud import (
     create_post,
     create_comment,
     create_ai_user,
-    get_posts,
+    get_latest_n_posts,
     get_comments_by_post
 )
 from backend.database.database import get_db_session

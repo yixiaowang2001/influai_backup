@@ -18,12 +18,18 @@ def create_post(db: Session, post: PostModel) -> models.Post:
     return db_post
 
 
-def get_post(db: Session, post_id: int) -> Optional[models.Post]:
-    return db.query(models.Post).filter(models.Post.post_id == post_id).first()
-
-
-def get_posts(db: Session, skip: int = 0, limit: int = 100) -> List[models.Post]:
-    return db.query(models.Post).offset(skip).limit(limit).all()
+def get_latest_n_posts(db: Session, n: int) -> List[models.Post]:
+    """
+    获取最新的n个帖子，按created_at字段降序排列
+    
+    Args:
+        db: 数据库会话
+        n: 要获取的帖子数量
+        
+    Returns:
+        List[models.Post]: 最新的n个帖子列表
+    """
+    return db.query(models.Post).order_by(models.Post.created_at.desc()).limit(n).all()
 
 
 def create_ai_user(db: Session, ai_user: AIUserModel) -> models.AIUser:

@@ -1,20 +1,6 @@
 from backend.models import Attitude
 
 
-def format_history_posts(posts: list, n: int) -> list[str]:
-    if not posts:
-        return []
-    
-    recent_posts = posts[:n]
-    
-    formatted_posts = []
-    for i, post in enumerate(recent_posts, 1):
-        post_content = getattr(post, 'post_content', str(post))
-        formatted_posts.append(f"{i}. {post_content}")
-    
-    return formatted_posts
-
-
 def get_predict_post_stats_prompt(
         persona: str,
         follower_count: int,
