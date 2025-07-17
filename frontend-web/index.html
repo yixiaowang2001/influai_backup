@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InfluAI Web 1.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="main.js" defer></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background-color: #f5f7fa;
+      padding-bottom: 140px; /* 为底部发布区域预留空间 */
+    }
+    .post-item {
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .post-item:last-child {
+      border-bottom: none;
+    }
+    .action-button {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      border: none;
+      background: transparent;
+      color: #6b7280;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 16px;
+    }
+    .action-button:hover {
+      background-color: #f3f4f6;
+      color: #4b5563;
+    }
+    .action-button.liked {
+      color: #dc2626;
+    }
+    .action-button.liked:hover {
+      background-color: #fef2f2;
+    }
+    .actions-bar {
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+    }
+    .publish-area {
+      position: fixed;
+      bottom: 20px; /* 底部留出边距 */
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 640px; /* 对应 max-w-2xl */
+      width: 100%;
+      background: white;
+      border-top: 1px solid #e5e7eb;
+      box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .publish-area.hidden {
+      display: none;
+    }
+    .comment-item {
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .comment-item:last-child {
+      border-bottom: none;
+    }
+    .comment-like-btn {
+      color: #6b7280;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .comment-like-btn:hover {
+      background-color: #f3f4f6;
+      color: #4b5563;
+    }
+    .comment-like-btn.liked {
+      color: #dc2626;
+    }
+    .comment-like-btn.liked:hover {
+      background-color: #fef2f2;
+    }
+    .comment-input-box {
+      position: fixed;
+      bottom: 20px; /* 和发布框同样的位置 */
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 640px;
+      width: 100%;
+      z-index: 60;
+      box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .dropdown-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      z-index: 10;
+      min-width: 120px;
+    }
+    .dropdown-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #374151;
+    }
+    .dropdown-item:hover {
+      background-color: #f3f4f6;
+    }
+    .dropdown-item.selected {
+      background-color: #f9fafb;
+      color: #111827;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="max-w-2xl mx-auto bg-white">
+    <!-- 时间线帖子列表 -->
+    <div id="postsContainer">
+      <!-- 空状态：不显示任何内容 -->
+    </div>
+  </div>
+
+  <!-- 发布区域 - 固定在底部 -->
+  <div id="publishArea" class="publish-area">
+    <div class="p-4">
+      <textarea 
+        id="postContent" 
+        placeholder="分享新鲜事..." 
+        class="w-full p-3 border border-gray-200 rounded focus:ring-1 focus:ring-gray-400 focus:border-gray-400 h-20 resize-none"
+      ></textarea>
+      <div class="flex justify-between items-center mt-2">
+        <div class="text-sm text-gray-500">
+          <span id="charCount">0</span>/140
+        </div>
+        <button 
+          id="postButton" 
+          class="px-4 py-1 bg-black text-white rounded font-medium hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          disabled
+        >
+          发布
+        </button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
