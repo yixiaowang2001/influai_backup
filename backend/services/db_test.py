@@ -17,9 +17,10 @@ from backend.models import (
     AIUser,
     Attitude
 )
+from backend.data.test_data import CASTER as USER
 
-# 初始化数据库
-init_database()
+# # 初始化数据库
+# init_database(user_template=USER)
 
 # 获取数据库会话
 db = get_db_session()
@@ -50,6 +51,7 @@ db = get_db_session()
 #
 # create_ai_user(db, new_ai_user)
 # print(len(get_comments_by_post(db, 1)))
+
 
 # 关闭数据库连接
 db.close()

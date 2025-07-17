@@ -1,7 +1,7 @@
 # influai_backup
 
 ## TODO
-- AI用户初始化
+- 评分分发给ai用户
 - 接口
 - 请求速度优化
 

@@ -11,6 +11,8 @@ from backend.models import Attitude
 from backend.utils import get_logger, rand_int
 
 logger = get_logger(__name__)
+COMMENT_RELATED_MODEL = "qwen-plus-2025-01-25"
+MAX_TOKEN = 8192
 
 
 def generate_lv1_seeds(
@@ -42,9 +44,9 @@ def generate_lv1_seeds(
         response = chat(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            model_name="qwen-plus-latest",
+            model_name=COMMENT_RELATED_MODEL,
             temperature=1.99,
-            max_tokens=8192
+            max_tokens=MAX_TOKEN
         )
         
         if not response:
@@ -111,9 +113,9 @@ def expand_lv1_comments(
         response = chat(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            model_name="qwen-plus-latest",
+            model_name=COMMENT_RELATED_MODEL,
             temperature=1.99,
-            max_tokens=16384
+            max_tokens=MAX_TOKEN
         )
         
         if not response:
@@ -168,9 +170,9 @@ def generate_lvn_comments(
         response = chat(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            model_name="qwen-plus-latest",
+            model_name=COMMENT_RELATED_MODEL,
             temperature=1.99,
-            max_tokens=16384
+            max_tokens=MAX_TOKEN
         )
         
         if not response:
