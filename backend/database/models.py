@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 
 from backend.database.database import Base
@@ -69,3 +69,21 @@ class Comment(Base):
 
     def __str__(self):
         return f"评论#{self.comment_id}: {self.comment_content[:20]}... (点赞:{self.comment_likes})"
+
+
+class UserTemplate(Base):
+    __tablename__ = "user_templates"
+
+    template_id = Column(Integer, primary_key=True, index=True)
+    template_name = Column(String(100), nullable=False, unique=True)
+    persona = Column(Text, nullable=False)
+    follower_count = Column(Integer, default=0)
+    commenter_distribution = Column(JSON, nullable=False)
+    default_avatar_path = Column(String(255), default="")
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<UserTemplate(id={self.template_id}, name='{self.template_name}', followers={self.follower_count})>"
+
+    def __str__(self):
+        return f"用户模板: {self.template_name} (粉丝数: {self.follower_count})"
