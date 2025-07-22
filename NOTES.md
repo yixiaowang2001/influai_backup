@@ -1,7 +1,6 @@
 # influai_backup
 
 ## TODO
-- 评分分发给ai用户
 - 接口
 - 请求速度优化
 

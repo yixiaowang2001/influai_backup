@@ -1,4 +1,5 @@
 from typing import List, Dict, Any
+
 from tqdm import tqdm
 
 from backend.ai_module import (
@@ -8,24 +9,18 @@ from backend.ai_module import (
     predict_comment_likes
 )
 from backend.configs import RETRY_COUNT, MAX_COMMENTS_PER_REQUEST
-from backend.database import database
-from backend.models import Attitude, Comment
-from backend.models import Post
-from backend.utils import get_logger, rand_int, format_history_posts, distribute_by_ratio
 from backend.database.crud import (
     create_post,
     create_comment,
-    create_ai_user,
-    get_latest_n_posts
+    get_latest_n_posts,
+    get_available_ai_users_by_attitude
 )
-from backend.database.database import get_db_session
-from backend.database.init_db import init_database
 from backend.models import (
     Post,
     Comment,
-    AIUser,
     Attitude
 )
+from backend.utils import get_logger, rand_int, format_history_posts, distribute_by_ratio
 
 logger = get_logger(__name__)
 
@@ -57,6 +52,7 @@ class PostService:
         self.pred_comment_count = None
         self.comments = []
         self.history_posts = []
+        self.assigned_ai_users = set()  # 记录已分配的AI用户ID
 
     def distribute_comment_nums(
             self,
@@ -72,6 +68,57 @@ class PostService:
             Dict[str, int]: 各态度类型的评论数量分布
         """
         return distribute_by_ratio(total, self.user_template["commenter_distribution"])
+
+    def assign_ai_user_to_comment(self, comment: Comment) -> Any | None:
+        """
+        为评论分配AI用户
+        
+        Args:
+            comment: 评论对象
+            
+        Returns:
+            str: 分配的AI用户ID
+        """
+        import random
+        import math
+        
+        # 获取符合评论态度的可用AI用户
+        available_users = get_available_ai_users_by_attitude(
+            db=self.db,
+            attitude_type=comment.comment_attitude,
+            exclude_user_ids=list(self.assigned_ai_users)
+        )
+        
+        if not available_users:
+            logger.warning(f"没有可用的AI用户用于态度 {comment.comment_attitude}")
+            # 如果没有可用用户，重置已分配用户列表（允许重复分配）
+            self.assigned_ai_users.clear()
+            available_users = get_available_ai_users_by_attitude(
+                db=self.db,
+                attitude_type=comment.comment_attitude
+            )
+            if not available_users:
+                logger.error(f"数据库中没有任何AI用户符合态度 {comment.comment_attitude}")
+                return None
+        
+        # 计算每个用户的权重（基于态度值的绝对值）
+        weights = []
+        for user in available_users:
+            # 态度值绝对值越大，权重越高
+            weight = abs(user.attitude_value)
+            # 使用指数函数增加权重差异，但不至于过于极端
+            weight = math.exp(weight * 2)  # 乘以2是为了增加差异，可以根据需要调整
+            weights.append(weight)
+        
+        # 使用加权随机选择
+        selected_user = random.choices(available_users, weights=weights, k=1)[0]
+        
+        # 记录已分配的用户
+        self.assigned_ai_users.add(selected_user.user_id)
+        
+        logger.debug(f"为评论分配AI用户: {selected_user.username} (态度值: {selected_user.attitude_value})")
+        
+        return selected_user.user_id
 
     def basic_update(self) -> None:
         """执行基础更新操作，包括预测统计数据和生成种子评论"""
@@ -175,6 +222,9 @@ class PostService:
             expanded_comments = self.expand_lv1_comments_by_attitude(att, comment_count)
             for comment in expanded_comments:
                 comment.post_id = post.post_id
+                ai_user_id = self.assign_ai_user_to_comment(comment)
+                if ai_user_id:
+                    comment.comment_user_id = ai_user_id
                 self.comments.append(comment)
                 create_comment(self.db, comment)
 

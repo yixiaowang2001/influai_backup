@@ -1,5 +1,4 @@
 import time
-from typing import Optional
 
 import openai
 from openai import OpenAI

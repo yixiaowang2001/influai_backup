@@ -2,22 +2,7 @@
 数据库测试文件
 用于测试数据库操作功能
 """
-from backend.database.crud import (
-    create_post,
-    create_comment,
-    create_ai_user,
-    get_latest_n_posts,
-    get_comments_by_post
-)
 from backend.database.database import get_db_session
-from backend.database.init_db import init_database
-from backend.models import (
-    Post,
-    Comment,
-    AIUser,
-    Attitude
-)
-from backend.data.test_data import CASTER as USER
 
 # # 初始化数据库
 # init_database(user_template=USER)

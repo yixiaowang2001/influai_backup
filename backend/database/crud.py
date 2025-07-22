@@ -143,3 +143,58 @@ def get_comments_by_post(db: Session, post_id: int) -> List[models.Comment]:
         List[models.Comment]: 评论列表
     """
     return db.query(models.Comment).filter(models.Comment.post_id == post_id).all()
+
+
+def get_all_ai_users(db: Session) -> List[models.AIUser]:
+    """
+    获取所有AI用户
+    
+    Args:
+        db: 数据库会话
+        
+    Returns:
+        List[models.AIUser]: AI用户列表
+    """
+    return db.query(models.AIUser).all()
+
+
+def get_ai_users_by_attitude(db: Session, attitude_type) -> List[models.AIUser]:
+    """
+    根据态度类型获取AI用户列表
+    
+    Args:
+        db: 数据库会话
+        attitude_type: 态度类型枚举
+        
+    Returns:
+        List[models.AIUser]: 符合态度类型的AI用户列表
+    """
+    lower_bound, upper_bound = attitude_type.value
+    return db.query(models.AIUser).filter(
+        models.AIUser.attitude_value >= lower_bound,
+        models.AIUser.attitude_value < upper_bound
+    ).all()
+
+
+def get_available_ai_users_by_attitude(db: Session, attitude_type, exclude_user_ids: List[str] = None) -> List[models.AIUser]:
+    """
+    根据态度类型获取可用的AI用户列表（排除已分配的用户）
+    
+    Args:
+        db: 数据库会话
+        attitude_type: 态度类型枚举
+        exclude_user_ids: 要排除的用户ID列表
+        
+    Returns:
+        List[models.AIUser]: 可用的AI用户列表
+    """
+    lower_bound, upper_bound = attitude_type.value
+    query = db.query(models.AIUser).filter(
+        models.AIUser.attitude_value >= lower_bound,
+        models.AIUser.attitude_value < upper_bound
+    )
+    
+    if exclude_user_ids:
+        query = query.filter(~models.AIUser.user_id.in_(exclude_user_ids))
+    
+    return query.all()

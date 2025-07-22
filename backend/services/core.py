@@ -1,20 +1,8 @@
 from backend.data.test_data import CASTER as USER
-from backend.services.post_service import PostService
-from backend.utils import get_logger
-from backend.database.crud import (
-    create_post,
-    create_comment,
-    create_ai_user,
-    get_posts
-)
 from backend.database.database import get_db_session
 from backend.database.init_db import init_database
-from backend.models import (
-    Post,
-    Comment,
-    AIUser,
-    Attitude
-)
+from backend.services.post_service import PostService
+from backend.utils import get_logger
 
 logger = get_logger(__name__)
 

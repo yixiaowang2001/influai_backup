@@ -1,6 +1,6 @@
 import random
 import string
-from datetime import datetime
+
 from backend.database import models
 from backend.models.attitude import Attitude
 from backend.utils import distribute_by_ratio

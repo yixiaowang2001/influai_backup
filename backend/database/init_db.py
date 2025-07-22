@@ -1,7 +1,7 @@
 from backend.database import models
 from backend.database.database import engine, Base, get_db_session
-from backend.utils import get_logger
 from backend.database.db_utils import init_ai_users
+from backend.utils import get_logger
 
 logger = get_logger(__name__)
 
