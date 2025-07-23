@@ -2,7 +2,6 @@
 
 ## TODO
 - 接口
-- 数据库顺序优化（init里先初始化user template，然后用户再选）
 - 请求速度优化
 
 ## CoT

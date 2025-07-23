@@ -1,4 +1,3 @@
-from backend.data.test_data import CASTER as USER
 from backend.database.database import get_db_session
 from backend.database.init_db import init_database
 from backend.services.post_service import PostService
@@ -7,7 +6,7 @@ from backend.utils import get_logger
 logger = get_logger(__name__)
 
 # 用户模板配置
-template = USER
+template_name = "CASTER"
 
 # 测试帖子内容
 post = """老胡像大家一样痛恨虐猫者，支持对他们做出应有的惩罚。我只是建议，在惩罚之后，舆论不要长期"追杀"他们，其实，我觉得对各种犯了错，哪怕刑满释放人员，舆论都不要"追杀"，让法律和规定，以及那些人生活的周围环境决定他们之后的命运，尤其是对于非公众人物，非官员，要给他们悔过自新的机会。
@@ -16,7 +15,7 @@ post = """老胡像大家一样痛恨虐猫者，支持对他们做出应有的�
 
 # 初始化数据库
 init_database(
-    user_template=template
+    template_name=template_name,
 )
 
 # 获取数据库会话
@@ -27,7 +26,7 @@ logger.info("数据库已初始化")
 # 创建帖子服务实例并运行
 ps = PostService(
     content=post,
-    user_template=template,
+    template_name=template_name,
     db=db
 )
 ps.run()

@@ -13,7 +13,8 @@ from backend.database.crud import (
     create_post,
     create_comment,
     get_latest_n_posts,
-    get_available_ai_users_by_attitude
+    get_available_ai_users_by_attitude,
+    get_user_template_by_name
 )
 from backend.models import (
     Post,
@@ -31,7 +32,7 @@ class PostService:
     def __init__(
             self,
             content: str,
-            user_template: Dict[str, Any],
+            template_name: str,
             db,
     ):
         """
@@ -39,20 +40,38 @@ class PostService:
         
         Args:
             content: 帖子内容
-            user_template: 用户模板配置
+            template_name: 用户模板名称
             db: 数据库会话
         """
         self.post = Post(
             post_content=content,
         )
-        self.user_template = user_template
+        self.template_name = template_name
         self.db = db
+        self.user_template = None
         self.lv1_seeds = None
         self.new_follower_count = None
         self.pred_comment_count = None
         self.comments = []
         self.history_posts = []
         self.assigned_ai_users = set()  # 记录已分配的AI用户ID
+        
+        # 从数据库加载用户模板
+        self._load_user_template()
+    
+    def _load_user_template(self):
+        """从数据库加载用户模板"""
+        template = get_user_template_by_name(self.db, self.template_name)
+        if not template:
+            raise ValueError(f"未找到模板: {self.template_name}")
+        
+        # 将数据库对象转换为字典格式，保持与原有代码的兼容性
+        self.user_template = {
+            "persona": template.persona,
+            "follower_count": template.follower_count,
+            "commenter_distribution": template.commenter_distribution,
+            "default_avatar_path": template.default_avatar_path
+        }
 
     def distribute_comment_nums(
             self,

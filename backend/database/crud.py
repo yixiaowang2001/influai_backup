@@ -198,3 +198,30 @@ def get_available_ai_users_by_attitude(db: Session, attitude_type, exclude_user_
         query = query.filter(~models.AIUser.user_id.in_(exclude_user_ids))
     
     return query.all()
+
+
+def get_user_template_by_name(db: Session, template_name: str) -> Optional[models.UserTemplate]:
+    """
+    根据模板名称获取用户模板
+    
+    Args:
+        db: 数据库会话
+        template_name: 模板名称
+        
+    Returns:
+        Optional[models.UserTemplate]: 用户模板对象，如果不存在则返回None
+    """
+    return db.query(models.UserTemplate).filter(models.UserTemplate.template_name == template_name).first()
+
+
+def get_all_user_templates(db: Session) -> List[models.UserTemplate]:
+    """
+    获取所有用户模板
+    
+    Args:
+        db: 数据库会话
+        
+    Returns:
+        List[models.UserTemplate]: 所有用户模板列表
+    """
+    return db.query(models.UserTemplate).all()
