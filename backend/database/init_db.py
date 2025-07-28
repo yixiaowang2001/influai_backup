@@ -6,7 +6,7 @@ from backend.database import models
 from backend.database.crud import get_user_template_by_name
 from backend.database.database import engine, Base, get_db_session
 from backend.database.db_utils import init_ai_users
-from backend.utils import get_logger
+from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -22,6 +22,11 @@ def load_user_templates() -> Dict[str, Any]:
         # 获取JSON文件路径
         current_dir = os.path.dirname(os.path.abspath(__file__))
         json_path = os.path.join(current_dir, "..", "data", "user_templates.json")
+        
+        # 如果文件不存在，尝试从项目根目录查找
+        if not os.path.exists(json_path):
+            project_root = os.path.join(current_dir, "..", "..")
+            json_path = os.path.join(project_root, "backend", "data", "user_templates.json")
 
         with open(json_path, 'r', encoding='utf-8') as f:
             templates = json.load(f)

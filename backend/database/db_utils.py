@@ -3,7 +3,7 @@ import string
 
 from backend.database import models
 from backend.models.attitude import Attitude
-from backend.utils import distribute_by_ratio
+from backend.utils.global_utils import distribute_by_ratio
 
 
 def init_ai_users(user_template: dict):

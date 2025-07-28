@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-from backend.utils import get_logger
+from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

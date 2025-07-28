@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 import backend.database.models as models
 from backend.database.models import Post as PostModel, Comment as CommentModel, AIUser as AIUserModel
-from backend.utils import get_logger
+from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
