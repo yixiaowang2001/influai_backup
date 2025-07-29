@@ -226,3 +226,43 @@ def get_all_user_templates(db: Session) -> List[models.UserTemplate]:
         List[models.UserTemplate]: 所有用户模板列表
     """
     return db.query(models.UserTemplate).all()
+
+
+def get_human_user_by_id(db: Session, user_id: int) -> Optional[models.HumanUser]:
+    """
+    根据用户ID获取人类用户
+    
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+        
+    Returns:
+        Optional[models.HumanUser]: 人类用户对象，如果不存在则返回None
+    """
+    return db.query(models.HumanUser).filter(models.HumanUser.user_id == user_id).first()
+
+
+def get_first_human_user(db: Session) -> Optional[models.HumanUser]:
+    """
+    获取第一个人类用户（用于默认用户）
+    
+    Args:
+        db: 数据库会话
+        
+    Returns:
+        Optional[models.HumanUser]: 第一个人类用户对象，如果不存在则返回None
+    """
+    return db.query(models.HumanUser).first()
+
+
+def get_all_human_users(db: Session) -> List[models.HumanUser]:
+    """
+    获取所有人类用户
+    
+    Args:
+        db: 数据库会话
+        
+    Returns:
+        List[models.HumanUser]: 所有人类用户列表
+    """
+    return db.query(models.HumanUser).all()

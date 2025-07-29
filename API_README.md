@@ -34,11 +34,17 @@ python test_api_flow.py
 
 ## API 接口说明
 
-### 用户相关接口
+### 人类用户相关接口
 
-#### 获取当前用户信息
+#### 获取所有人类用户信息
 - **GET** `/user/profile`
-- 返回当前用户的基本信息
+- 返回所有人类用户的列表
+
+#### 获取特定人类用户信息
+- **GET** `/user/profile/{humanUserId}`
+- 根据用户ID获取特定人类用户信息
+
+### 用户模板相关接口
 
 #### 获取用户模板列表
 - **GET** `/user-templates`
@@ -115,13 +121,15 @@ python test_api_flow.py
 
 ## 数据模型
 
-### 用户模型
+### 人类用户模型
 ```json
 {
-  "id": "string",
-  "username": "string",
-  "userId": "string",
-  "template": "string"
+  "humanUserId": "number",
+  "humanUsername": "string",
+  "avatarPath": "string",
+  "followerCount": "number",
+  "userTemplateId": "number",
+  "createdAt": "string"
 }
 ```
 

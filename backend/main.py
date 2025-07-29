@@ -95,18 +95,50 @@ def format_timestamp(created_at: datetime) -> str:
 
 # 用户相关接口
 @app.get("/user/profile")
-async def get_user_profile(db: Session = Depends(get_db)):
-    """获取当前用户信息"""
+async def get_all_human_users(db: Session = Depends(get_db)):
+    """获取所有人类用户信息"""
     try:
-        # 这里简化处理，返回默认用户信息
-        # 在实际应用中，应该从认证系统获取用户信息
+        human_users = crud.get_all_human_users(db)
+        
+        user_list = []
+        for human_user in human_users:
+            user_data = {
+                "humanUserId": human_user.user_id,
+                "humanUsername": human_user.username,
+                "avatarPath": human_user.avatar_path,
+                "followerCount": human_user.follower_count,
+                "userTemplateId": human_user.user_template_id,
+                "createdAt": human_user.created_at.isoformat()
+            }
+            user_list.append(user_data)
+        
+        return create_response(data=user_list)
+    except Exception as e:
+        logger.error(f"获取所有人类用户信息失败: {e}")
+        raise HTTPException(status_code=500, detail="获取所有人类用户信息失败")
+
+
+@app.get("/user/profile/{human_user_id}")
+async def get_human_user_by_id(human_user_id: int, db: Session = Depends(get_db)):
+    """获取特定人类用户信息"""
+    try:
+        human_user = crud.get_human_user_by_id(db, human_user_id)
+        
+        if not human_user:
+            raise HTTPException(status_code=404, detail=f"未找到用户ID为 {human_user_id} 的用户")
+        
         user_data = {
-            "id": "user_12345",
-            "username": "默认用户",
-            "userId": "@example_user",
-            "template": "用户模版内容"
+            "humanUserId": human_user.user_id,
+            "humanUsername": human_user.username,
+            "avatarPath": human_user.avatar_path,
+            "followerCount": human_user.follower_count,
+            "userTemplateId": human_user.user_template_id,
+            "createdAt": human_user.created_at.isoformat()
         }
         return create_response(data=user_data)
+    except HTTPException:
+        # 重新抛出HTTPException，避免被通用异常处理捕获
+        raise
     except Exception as e:
         logger.error(f"获取用户信息失败: {e}")
         raise HTTPException(status_code=500, detail="获取用户信息失败")

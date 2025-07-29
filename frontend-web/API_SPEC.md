@@ -11,9 +11,9 @@
 
 ---
 
-## 2. 用户相关接口
+## 2. 人类用户相关接口
 
-### 2.1 获取当前用户信息
+### 2.1 获取所有人类用户信息
 **GET** `/user/profile`
 
 **响应示例:**
@@ -21,11 +21,34 @@
 {
   "code": 200,
   "message": "success",
+  "data": [
+    {
+      "humanUserId": 1,
+      "humanUsername": "默认主要用户",
+      "avatarPath": "test_path/test.jpg",
+      "followerCount": 0,
+      "userTemplateId": 1,
+      "createdAt": "2024-01-15T10:30:00Z"
+    }
+  ]
+}
+```
+
+### 2.2 获取特定人类用户信息
+**GET** `/user/profile/{humanUserId}`
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
   "data": {
-    "id": "user_12345",
-    "username": "默认用户",
-    "userId": "@example_user",
-    "template": "用户模版内容"
+    "humanUserId": 1,
+    "humanUsername": "默认主要用户",
+    "avatarPath": "test_path/test.jpg",
+    "followerCount": 0,
+    "userTemplateId": 1,
+    "createdAt": "2024-01-15T10:30:00Z"
   }
 }
 ```
