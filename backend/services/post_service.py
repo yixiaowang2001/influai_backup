@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 
 class PostService:
     """帖子服务类，负责处理帖子的创建和评论生成"""
-    
+
     def __init__(
             self,
             content: str,
@@ -55,16 +55,16 @@ class PostService:
         self.comments = []
         self.history_posts = []
         self.assigned_ai_users = set()  # 记录已分配的AI用户ID
-        
+
         # 从数据库加载用户模板
         self._load_user_template()
-    
+
     def _load_user_template(self):
         """从数据库加载用户模板"""
         template = get_user_template_by_name(self.db, self.template_name)
         if not template:
             raise ValueError(f"未找到模板: {self.template_name}")
-        
+
         # 将数据库对象转换为字典格式，保持与原有代码的兼容性
         self.user_template = {
             "persona": template.persona,
@@ -100,14 +100,14 @@ class PostService:
         """
         import random
         import math
-        
+
         # 获取符合评论态度的可用AI用户
         available_users = get_available_ai_users_by_attitude(
             db=self.db,
             attitude_type=comment.comment_attitude,
             exclude_user_ids=list(self.assigned_ai_users)
         )
-        
+
         if not available_users:
             logger.warning(f"没有可用的AI用户用于态度 {comment.comment_attitude}")
             # 如果没有可用用户，重置已分配用户列表（允许重复分配）
@@ -119,7 +119,7 @@ class PostService:
             if not available_users:
                 logger.error(f"数据库中没有任何AI用户符合态度 {comment.comment_attitude}")
                 return None
-        
+
         # 计算每个用户的权重（基于态度值的绝对值）
         weights = []
         for user in available_users:
@@ -128,15 +128,15 @@ class PostService:
             # 使用指数函数增加权重差异，但不至于过于极端
             weight = math.exp(weight * 2)  # 乘以2是为了增加差异，可以根据需要调整
             weights.append(weight)
-        
+
         # 使用加权随机选择
         selected_user = random.choices(available_users, weights=weights, k=1)[0]
-        
+
         # 记录已分配的用户
         self.assigned_ai_users.add(selected_user.user_id)
-        
+
         logger.debug(f"为评论分配AI用户: {selected_user.username} (态度值: {selected_user.attitude_value})")
-        
+
         return selected_user.user_id
 
     def basic_update(self) -> None:

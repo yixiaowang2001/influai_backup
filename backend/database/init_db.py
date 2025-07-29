@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 from typing import Dict, Any
 
 from backend.database import models
@@ -22,7 +23,7 @@ def load_user_templates() -> Dict[str, Any]:
         # 获取JSON文件路径
         current_dir = os.path.dirname(os.path.abspath(__file__))
         json_path = os.path.join(current_dir, "..", "data", "user_templates.json")
-        
+
         # 如果文件不存在，尝试从项目根目录查找
         if not os.path.exists(json_path):
             project_root = os.path.join(current_dir, "..", "..")
@@ -105,6 +106,19 @@ def insert_init_data(template_name: str = None) -> None:
         # 初始化用户模板数据
         if not init_user_templates():
             raise Exception("用户模板初始化失败")
+
+        # 插入默认人类用户
+        if not db.query(models.HumanUser).first():
+            default_human_user = models.HumanUser(
+                username="默认主要用户",
+                user_template_id=3,
+                avatar_path="",
+                follower_count=0,
+                created_at=datetime.now()
+            )
+            db.add(default_human_user)
+            db.commit()
+            logger.info("成功插入默认人类用户数据。")
 
         # 如果提供了模板名称，则根据该模板初始化AI用户数据
         if template_name:

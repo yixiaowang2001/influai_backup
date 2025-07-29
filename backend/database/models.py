@@ -87,3 +87,20 @@ class UserTemplate(Base):
 
     def __str__(self):
         return f"用户模板: {self.template_name} (粉丝数: {self.follower_count})"
+
+
+class HumanUser(Base):
+    __tablename__ = "human_users"
+
+    user_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    username = Column(String(100), nullable=False)
+    user_template_id = Column(Integer, ForeignKey("user_templates.template_id"), nullable=False)
+    avatar_path = Column(String(255), default="")
+    follower_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.now)
+
+    def __repr__(self):
+        return f"<HumanUser(id={self.user_id}, username='{self.username}', template_id={self.user_template_id})>"
+
+    def __str__(self):
+        return f"人类用户: {self.username} (模板ID: {self.user_template_id})"

@@ -176,7 +176,8 @@ def get_ai_users_by_attitude(db: Session, attitude_type) -> List[models.AIUser]:
     ).all()
 
 
-def get_available_ai_users_by_attitude(db: Session, attitude_type, exclude_user_ids: List[str] = None) -> List[models.AIUser]:
+def get_available_ai_users_by_attitude(db: Session, attitude_type, exclude_user_ids: List[str] = None) -> List[
+    models.AIUser]:
     """
     根据态度类型获取可用的AI用户列表（排除已分配的用户）
     
@@ -193,10 +194,10 @@ def get_available_ai_users_by_attitude(db: Session, attitude_type, exclude_user_
         models.AIUser.attitude_value >= lower_bound,
         models.AIUser.attitude_value < upper_bound
     )
-    
+
     if exclude_user_ids:
         query = query.filter(~models.AIUser.user_id.in_(exclude_user_ids))
-    
+
     return query.all()
 
 

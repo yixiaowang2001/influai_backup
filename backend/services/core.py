@@ -1,6 +1,5 @@
 from backend.database.database import get_db_session
 from backend.database.init_db import init_database
-from backend.services.post_service import PostService
 from backend.utils import get_logger
 
 logger = get_logger(__name__)
@@ -23,10 +22,10 @@ db = get_db_session()
 
 logger.info("数据库已初始化")
 
-# 创建帖子服务实例并运行
-ps = PostService(
-    content=post,
-    template_name=template_name,
-    db=db
-)
-ps.run()
+# # 创建帖子服务实例并运行
+# ps = PostService(
+#     content=post,
+#     template_name=template_name,
+#     db=db
+# )
+# ps.run()
