@@ -57,7 +57,7 @@
 
 ## 3. 帖子相关接口
 
-### 3.1 获取帖子列表（时间线）
+### 3.1 获取最近帖子列表
 **GET** `/posts`
 
 **响应示例:**
@@ -67,12 +67,12 @@
   "message": "success",
   "data": [
     {
-      "id": "post_67890",
-      "content": "这是一条测试帖子",
-      "author": {
+      "postId": 1,
+      "postContent": "这是一条测试帖子",
+      "authorInfo": {
         "id": "user_12345", 
         "username": "默认用户",
-        "userId": "@example_user"
+        "avatarPath": "test_path/test.jpg"
       },
       "timestamp": "刚刚",
       "createdAt": "2024-01-15T10:30:00Z",
@@ -100,18 +100,7 @@
   "code": 200,
   "message": "success",
   "data": {
-    "id": "post_67891",
-    "content": "帖子内容，最多140字符",
-    "author": {
-      "id": "user_12345",
-      "username": "默认用户", 
-      "userId": "@example_user"
-    },
-    "timestamp": "刚刚",
-    "createdAt": "2024-01-15T10:35:00Z",
-    "likes": 0,
-    "commentsCount": 0,
-    "isLiked": false
+    "postId": 1
   }
 }
 ```

@@ -63,7 +63,8 @@ python test_api_flow.py
 #### 发布帖子
 - **POST** `/posts`
 - 发布新帖子
-- 请求体: `{"content": "帖子内容"}`
+- 请求体: `{"content": "帖子内容", "author_id": 1}`
+- `author_id`: 可选，作者ID，默认为1
 
 #### 点赞帖子
 - **POST** `/posts/{post_id}/like`

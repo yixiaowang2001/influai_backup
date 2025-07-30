@@ -12,10 +12,12 @@ class Post(Base):
 
     post_id = Column(Integer, primary_key=True, index=True)
     post_content = Column(Text, nullable=False)
+    author_id = Column(Integer, ForeignKey("human_users.user_id"), nullable=False)
     like_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
 
     comments = relationship("Comment", back_populates="post")
+    author = relationship("HumanUser")
 
     def __repr__(self):
         content_preview = self.post_content[:50] + "..." if len(self.post_content) > 50 else self.post_content

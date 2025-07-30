@@ -195,13 +195,16 @@ async def get_posts(db: Session = Depends(get_db)):
         post_list = []
         
         for post in posts:
+            # 获取作者信息
+            author = crud.get_human_user_by_id(db, post.author_id) if post.author_id else None
+            
             post_data = {
                 "id": f"post_{post.post_id}",
                 "content": post.post_content,
                 "author": {
-                    "id": "user_12345",
-                    "username": "默认用户",
-                    "userId": "@example_user"
+                    "id": f"user_{author.user_id}" if author else "unknown",
+                    "username": author.username if author else "未知用户",
+                    "userId": f"@{author.username.lower()}" if author else "@unknown"
                 },
                 "timestamp": format_timestamp(post.created_at),
                 "createdAt": post.created_at.isoformat(),
@@ -217,19 +220,27 @@ async def get_posts(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="获取帖子列表失败")
 
 @app.post("/posts")
-async def create_post(post_data: Dict[str, str], db: Session = Depends(get_db)):
+async def create_post(post_data: Dict[str, Any], db: Session = Depends(get_db)):
     """发布帖子"""
     try:
         content = post_data.get("content", "")
+        author_id = post_data.get("author_id", 1)  # 默认使用第一个用户
+        
         if not content:
             raise HTTPException(status_code=400, detail="帖子内容不能为空")
         
         if len(content) > 140:
             raise HTTPException(status_code=400, detail="帖子内容不能超过140字符")
         
+        # 验证作者是否存在
+        author = crud.get_human_user_by_id(db, author_id)
+        if not author:
+            raise HTTPException(status_code=400, detail=f"用户ID {author_id} 不存在")
+        
         # 创建帖子
         new_post = models.Post(
             post_content=content,
+            author_id=author_id,
             like_count=0,
             created_at=datetime.now()
         )
@@ -241,9 +252,9 @@ async def create_post(post_data: Dict[str, str], db: Session = Depends(get_db)):
             "id": f"post_{created_post.post_id}",
             "content": created_post.post_content,
             "author": {
-                "id": "user_12345",
-                "username": "默认用户",
-                "userId": "@example_user"
+                "id": f"user_{author.user_id}",
+                "username": author.username,
+                "userId": f"@{author.username.lower()}"
             },
             "timestamp": format_timestamp(created_post.created_at),
             "createdAt": created_post.created_at.isoformat(),
@@ -259,6 +270,9 @@ async def create_post(post_data: Dict[str, str], db: Session = Depends(get_db)):
         }))
         
         return create_response(data=post_response)
+    except HTTPException:
+        # 重新抛出HTTPException，避免被通用异常处理捕获
+        raise
     except Exception as e:
         logger.error(f"发布帖子失败: {e}")
         raise HTTPException(status_code=500, detail="发布帖子失败")

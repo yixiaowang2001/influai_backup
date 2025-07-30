@@ -23,6 +23,7 @@ def create_post(db: Session, post: PostModel) -> models.Post:
     logger.debug(f"开始创建帖子，内容长度: {len(post.post_content)}")
     db_post = models.Post(
         post_content=post.post_content,
+        author_id=post.author_id,
         like_count=post.like_count or 0,
         created_at=post.created_at
     )
