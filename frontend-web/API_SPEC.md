@@ -53,6 +53,61 @@
 }
 ```
 
+### 2.3 获取当前用户信息
+**GET** `/user/current`
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "humanUserId": 1,
+    "humanUsername": "默认主要用户",
+    "avatarPath": "test_path/test.jpg",
+    "followerCount": 0,
+    "userTemplateId": 1,
+    "createdAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+### 2.4 设置当前用户（通过用户ID）
+**POST** `/user/set-current`
+
+**请求体:**
+```json
+{
+  "human_user_id": 1
+}
+```
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "humanUserId": 1,
+    "humanUsername": "默认主要用户",
+    "userTemplateId": 1,
+    "message": "当前用户设置成功"
+  }
+}
+```
+
+### 2.5 清除当前用户
+**DELETE** `/user/current`
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": null
+}
+```
+
 ---
 
 ## 3. 帖子相关接口

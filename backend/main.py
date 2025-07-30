@@ -18,6 +18,29 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# 全局用户管理
+class GlobalUserManager:
+    def __init__(self):
+        self.current_human_user = None
+    
+    def set_current_user(self, human_user):
+        """设置当前用户（会覆盖之前的用户）"""
+        self.current_human_user = human_user
+        logger.info(f"设置当前用户: {human_user.username} (ID: {human_user.user_id})")
+    
+    def get_current_user(self):
+        """获取当前用户"""
+        return self.current_human_user
+    
+    def clear_current_user(self):
+        """清除当前用户"""
+        if self.current_human_user:
+            logger.info(f"清除当前用户: {self.current_human_user.username}")
+        self.current_human_user = None
+
+# 全局用户管理器实例
+user_manager = GlobalUserManager()
+
 # 添加CORS中间件
 app.add_middleware(
     CORSMiddleware,
@@ -93,6 +116,67 @@ def format_timestamp(created_at: datetime) -> str:
         days = int(diff.total_seconds() // 86400)
         return f"{days}天前"
 
+
+async def generate_comments_for_post(post_id: int, user_template_id: int, db: Session):
+    """为帖子生成评论"""
+    try:
+        logger.info(f"开始为帖子 {post_id} 生成评论...")
+        
+        # 获取用户模板
+        template = db.query(models.UserTemplate).filter(models.UserTemplate.template_id == user_template_id).first()
+        if not template:
+            logger.error(f"未找到模板ID: {user_template_id}")
+            return
+        
+        # 获取帖子内容
+        post = db.query(models.Post).filter(models.Post.post_id == post_id).first()
+        if not post:
+            logger.error(f"未找到帖子ID: {post_id}")
+            return
+        
+        # 简化版本：直接创建一些测试评论
+        test_comments = [
+            "这是一条测试评论1",
+            "这是一条测试评论2", 
+            "这是一条测试评论3"
+        ]
+        
+        for i, comment_content in enumerate(test_comments):
+            # 创建评论
+            new_comment = models.Comment(
+                comment_content=comment_content,
+                comment_user_type=1,
+                comment_level=1,
+                comment_likes=0,
+                master_comment_id=None,
+                created_at=datetime.now(),
+                send_at=datetime.now(),
+                post_id=post_id,
+                ai_user_id=None  # 暂时不分配AI用户
+            )
+            
+            db.add(new_comment)
+            db.commit()
+            db.refresh(new_comment)
+            
+            logger.info(f"创建评论: {comment_content}")
+        
+        logger.info(f"帖子 {post_id} 的评论生成完成，共 {len(test_comments)} 条")
+        
+        # 通过WebSocket广播评论数更新
+        await manager.broadcast(json.dumps({
+            "type": "post_comments_update",
+            "data": {
+                "postId": f"post_{post_id}",
+                "commentsCount": len(test_comments)
+            }
+        }))
+        
+    except Exception as e:
+        logger.error(f"生成评论失败: {e}")
+        import traceback
+        logger.error(f"错误详情: {traceback.format_exc()}")
+
 # 用户相关接口
 @app.get("/user/profile")
 async def get_all_human_users(db: Session = Depends(get_db)):
@@ -143,6 +227,45 @@ async def get_human_user_by_id(human_user_id: int, db: Session = Depends(get_db)
         logger.error(f"获取用户信息失败: {e}")
         raise HTTPException(status_code=500, detail="获取用户信息失败")
 
+
+@app.get("/user/current")
+async def get_current_user():
+    """获取当前用户信息"""
+    try:
+        current_user = user_manager.get_current_user()
+        if not current_user:
+            raise HTTPException(status_code=404, detail="未设置当前用户")
+        
+        user_data = {
+            "humanUserId": current_user.user_id,
+            "humanUsername": current_user.username,
+            "avatarPath": current_user.avatar_path,
+            "followerCount": current_user.follower_count,
+            "userTemplateId": current_user.user_template_id,
+            "createdAt": current_user.created_at.isoformat()
+        }
+        return create_response(data=user_data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取当前用户信息失败: {e}")
+        raise HTTPException(status_code=500, detail="获取当前用户信息失败")
+
+
+@app.delete("/user/current")
+async def clear_current_user():
+    """清除当前用户"""
+    try:
+        current_user = user_manager.get_current_user()
+        if not current_user:
+            return create_response(message="当前没有设置用户")
+        
+        user_manager.clear_current_user()
+        return create_response(message="当前用户已清除")
+    except Exception as e:
+        logger.error(f"清除当前用户失败: {e}")
+        raise HTTPException(status_code=500, detail="清除当前用户失败")
+
 # 用户模板相关接口
 @app.get("/user-templates")
 async def get_user_templates(db: Session = Depends(get_db)):
@@ -186,6 +309,38 @@ async def init_ai_users_by_template(template_name: str, db: Session = Depends(ge
         logger.error(f"初始化AI用户失败: {e}")
         raise HTTPException(status_code=500, detail="初始化AI用户失败")
 
+
+@app.post("/user/set-current")
+async def set_current_user(user_data: Dict[str, int], db: Session = Depends(get_db)):
+    """设置当前用户（通过human_user_id设置）"""
+    try:
+        human_user_id = user_data.get("human_user_id")
+        if not human_user_id:
+            raise HTTPException(status_code=400, detail="human_user_id不能为空")
+        
+        # 查找人类用户
+        human_user = crud.get_human_user_by_id(db, human_user_id)
+        if not human_user:
+            raise HTTPException(status_code=404, detail=f"未找到用户ID: {human_user_id}")
+        
+        # 设置为当前用户（会覆盖之前的用户）
+        user_manager.set_current_user(human_user)
+        
+        return create_response(data={
+            "humanUserId": human_user.user_id,
+            "humanUsername": human_user.username,
+            "userTemplateId": human_user.user_template_id,
+            "message": "当前用户设置成功"
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"设置当前用户失败: {e}")
+        raise HTTPException(status_code=500, detail="设置当前用户失败")
+
+
+
+
 # 帖子相关接口
 @app.get("/posts")
 async def get_posts(db: Session = Depends(get_db)):
@@ -224,7 +379,6 @@ async def create_post(post_data: Dict[str, Any], db: Session = Depends(get_db)):
     """发布帖子"""
     try:
         content = post_data.get("content", "")
-        author_id = post_data.get("author_id", 1)  # 默认使用第一个用户
         
         if not content:
             raise HTTPException(status_code=400, detail="帖子内容不能为空")
@@ -232,20 +386,23 @@ async def create_post(post_data: Dict[str, Any], db: Session = Depends(get_db)):
         if len(content) > 140:
             raise HTTPException(status_code=400, detail="帖子内容不能超过140字符")
         
-        # 验证作者是否存在
-        author = crud.get_human_user_by_id(db, author_id)
-        if not author:
-            raise HTTPException(status_code=400, detail=f"用户ID {author_id} 不存在")
+        # 获取当前用户
+        current_user = user_manager.get_current_user()
+        if not current_user:
+            raise HTTPException(status_code=400, detail="请先设置当前用户")
         
         # 创建帖子
         new_post = models.Post(
             post_content=content,
-            author_id=author_id,
+            author_id=current_user.user_id,
             like_count=0,
             created_at=datetime.now()
         )
         
         created_post = crud.create_post(db, new_post)
+        
+        # 获取作者信息用于响应
+        author = crud.get_human_user_by_id(db, current_user.user_id)
         
         # 返回创建的帖子数据
         post_response = {
@@ -268,6 +425,13 @@ async def create_post(post_data: Dict[str, Any], db: Session = Depends(get_db)):
             "type": "new_post",
             "data": post_response
         }))
+        
+        # 同步生成评论（便于调试）
+        try:
+            await generate_comments_for_post(created_post.post_id, current_user.user_template_id, db)
+        except Exception as e:
+            logger.error(f"生成评论时出错: {e}")
+            # 不阻塞帖子发布，继续返回响应
         
         return create_response(data=post_response)
     except HTTPException:
