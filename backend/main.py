@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import json
 from datetime import datetime, timedelta
+from pydantic import BaseModel, Field
 
 from backend.database.database import get_db
 from backend.database import crud, models
@@ -11,11 +12,93 @@ from backend.database.init_db import init_database
 from backend.utils.logger import get_logger
 from backend.utils.global_utils import distribute_by_ratio
 
+# Pydantic模型定义
+class SetCurrentUserRequest(BaseModel):
+    """设置当前用户的请求模型"""
+    human_user_id: int = Field(
+        ..., 
+        description="人类用户ID，用于设置当前全局用户", 
+        example=1,
+        gt=0
+    )
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "human_user_id": 1
+            }
+        }
+    }
+
+class CreatePostRequest(BaseModel):
+    """创建帖子的请求模型"""
+    content: str = Field(
+        ..., 
+        description="帖子内容，不能为空且不能超过140字符", 
+        example="这是一条测试帖子！今天天气真不错！",
+        min_length=1,
+        max_length=140
+    )
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "content": "这是一条测试帖子！今天天气真不错！"
+            }
+        }
+    }
+
+class CreateCommentRequest(BaseModel):
+    """创建评论的请求模型"""
+    content: str = Field(
+        ..., 
+        description="评论内容，不能为空且不能超过140字符", 
+        example="这是一条测试评论！说得很有道理！",
+        min_length=1,
+        max_length=140
+    )
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "content": "这是一条测试评论！说得很有道理！"
+            }
+        }
+    }
+
 # 创建FastAPI应用
 app = FastAPI(
     title="InfluAI Backend API",
-    description="InfluAI社交媒体模拟平台后端API",
-    version="1.0.0"
+    description="""
+    InfluAI社交媒体模拟平台后端API
+    
+    ## 功能特性
+    
+    * **用户管理** - 支持人类用户和AI用户管理
+    * **帖子系统** - 发布、点赞、评论功能
+    * **实时更新** - WebSocket实时推送更新
+    * **AI评论** - 基于用户模板自动生成AI评论
+    
+    ## 快速开始
+    
+    1. 设置当前用户: `POST /user/set-current`
+    2. 发布帖子: `POST /posts`
+    3. 查看帖子: `GET /posts`
+    4. 点赞评论: `POST /posts/{post_id}/like`
+    
+    ## WebSocket
+    
+    连接 `ws://localhost:8000/ws/updates` 获取实时更新
+    """,
+    version="1.0.0",
+    contact={
+        "name": "InfluAI Team",
+        "email": "support@influai.com",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
 )
 
 # 全局用户管理
@@ -123,7 +206,7 @@ async def generate_comments_for_post(post_id: int, user_template_id: int, db: Se
         logger.info(f"开始为帖子 {post_id} 生成评论...")
         
         # 获取用户模板
-        template = db.query(models.UserTemplate).filter(models.UserTemplate.template_id == user_template_id).first()
+        template = crud.get_user_template_by_id(db, user_template_id)
         if not template:
             logger.error(f"未找到模板ID: {user_template_id}")
             return
@@ -134,41 +217,41 @@ async def generate_comments_for_post(post_id: int, user_template_id: int, db: Se
             logger.error(f"未找到帖子ID: {post_id}")
             return
         
-        # 简化版本：直接创建一些测试评论
-        test_comments = [
-            "这是一条测试评论1",
-            "这是一条测试评论2", 
-            "这是一条测试评论3"
-        ]
+        # 使用PostService生成评论
+        from backend.services.post_service import PostService
+        from backend.models import Post as PostModel, Comment as CommentModel
         
-        for i, comment_content in enumerate(test_comments):
-            # 创建评论
-            new_comment = models.Comment(
-                comment_content=comment_content,
-                comment_user_type=1,
-                comment_level=1,
-                comment_likes=0,
-                master_comment_id=None,
-                created_at=datetime.now(),
-                send_at=datetime.now(),
-                post_id=post_id,
-                ai_user_id=None  # 暂时不分配AI用户
-            )
-            
-            db.add(new_comment)
-            db.commit()
-            db.refresh(new_comment)
-            
-            logger.info(f"创建评论: {comment_content}")
+        # 创建Post对象用于PostService
+        post_for_service = PostModel(
+            post_content=post.post_content,
+            author_id=post.author_id,
+            like_count=post.like_count,
+            created_at=post.created_at
+        )
         
-        logger.info(f"帖子 {post_id} 的评论生成完成，共 {len(test_comments)} 条")
+        # 初始化PostService
+        post_service = PostService(
+            content=post.post_content,
+            template_id=template.template_id,
+            db=db
+        )
+        
+        # 运行PostService生成评论
+        stats = post_service.generate_comments_for_existing_post(post_id)
+        
+        # 更新帖子的统计数据
+        post.like_count = stats["pred_like_count"]
+        db.commit()
+        
+        logger.info(f"帖子 {post_id} 的评论生成完成，共 {len(post_service.comments)} 条")
         
         # 通过WebSocket广播评论数更新
         await manager.broadcast(json.dumps({
             "type": "post_comments_update",
             "data": {
                 "postId": f"post_{post_id}",
-                "commentsCount": len(test_comments)
+                "commentsCount": len(post_service.comments),
+                "likes": post.like_count
             }
         }))
         
@@ -267,7 +350,10 @@ async def clear_current_user():
         raise HTTPException(status_code=500, detail="清除当前用户失败")
 
 # 用户模板相关接口
-@app.get("/user-templates")
+@app.get("/user-templates",
+         summary="获取用户模板列表",
+         description="获取所有可用的用户模板，包含模板ID、名称、人设描述、粉丝数等信息。",
+         response_description="返回用户模板列表")
 async def get_user_templates(db: Session = Depends(get_db)):
     """获取所有用户模板"""
     try:
@@ -287,13 +373,16 @@ async def get_user_templates(db: Session = Depends(get_db)):
         logger.error(f"获取用户模板失败: {e}")
         raise HTTPException(status_code=500, detail="获取用户模板失败")
 
-@app.post("/user-templates/{template_name}/init-ai-users")
-async def init_ai_users_by_template(template_name: str, db: Session = Depends(get_db)):
+@app.post("/user-templates/{template_id}/init-ai-users",
+          summary="根据用户模板初始化AI用户",
+          description="根据指定的用户模板ID初始化AI用户数据。如果AI用户已存在则跳过初始化。",
+          response_description="初始化成功返回状态信息")
+async def init_ai_users_by_template(template_id: int, db: Session = Depends(get_db)):
     """根据用户模板初始化AI用户"""
     try:
-        template = crud.get_user_template_by_name(db, template_name)
+        template = crud.get_user_template_by_id(db, template_id)
         if not template:
-            raise HTTPException(status_code=404, detail=f"未找到模板: {template_name}")
+            raise HTTPException(status_code=404, detail=f"未找到模板ID: {template_id}")
         
         # 检查是否已经有AI用户
         existing_users = crud.get_all_ai_users(db)
@@ -302,21 +391,24 @@ async def init_ai_users_by_template(template_name: str, db: Session = Depends(ge
         
         # 初始化AI用户
         from backend.database.init_db import insert_init_data
-        insert_init_data(template_name)
+        insert_init_data(template.template_name)
         
-        return create_response(message=f"成功根据模板 '{template_name}' 初始化AI用户")
+        return create_response(message=f"成功根据模板 '{template.template_name}' (ID: {template_id}) 初始化AI用户")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"初始化AI用户失败: {e}")
         raise HTTPException(status_code=500, detail="初始化AI用户失败")
 
 
-@app.post("/user/set-current")
-async def set_current_user(user_data: Dict[str, int], db: Session = Depends(get_db)):
+@app.post("/user/set-current", 
+          summary="设置当前用户",
+          description="通过用户ID设置当前全局用户，用于后续的帖子发布等操作。同时只能有一个当前用户，设置新用户会覆盖之前的用户。",
+          response_description="设置成功返回用户信息")
+async def set_current_user(user_data: SetCurrentUserRequest, db: Session = Depends(get_db)):
     """设置当前用户（通过human_user_id设置）"""
     try:
-        human_user_id = user_data.get("human_user_id")
-        if not human_user_id:
-            raise HTTPException(status_code=400, detail="human_user_id不能为空")
+        human_user_id = user_data.human_user_id
         
         # 查找人类用户
         human_user = crud.get_human_user_by_id(db, human_user_id)
@@ -342,7 +434,10 @@ async def set_current_user(user_data: Dict[str, int], db: Session = Depends(get_
 
 
 # 帖子相关接口
-@app.get("/posts")
+@app.get("/posts",
+         summary="获取帖子列表",
+         description="获取最新的帖子列表（时间线），返回最新的50条帖子。",
+         response_description="返回帖子列表，包含作者信息、点赞数、评论数等")
 async def get_posts(db: Session = Depends(get_db)):
     """获取帖子列表（时间线）"""
     try:
@@ -374,17 +469,14 @@ async def get_posts(db: Session = Depends(get_db)):
         logger.error(f"获取帖子列表失败: {e}")
         raise HTTPException(status_code=500, detail="获取帖子列表失败")
 
-@app.post("/posts")
-async def create_post(post_data: Dict[str, Any], db: Session = Depends(get_db)):
+@app.post("/posts",
+          summary="发布帖子",
+          description="发布新帖子。需要先设置当前用户，帖子内容不能超过140字符。发布后会自动根据用户模板生成AI评论。",
+          response_description="发布成功返回帖子详细信息")
+async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db)):
     """发布帖子"""
     try:
-        content = post_data.get("content", "")
-        
-        if not content:
-            raise HTTPException(status_code=400, detail="帖子内容不能为空")
-        
-        if len(content) > 140:
-            raise HTTPException(status_code=400, detail="帖子内容不能超过140字符")
+        content = post_data.content
         
         # 获取当前用户
         current_user = user_manager.get_current_user()
@@ -441,7 +533,10 @@ async def create_post(post_data: Dict[str, Any], db: Session = Depends(get_db)):
         logger.error(f"发布帖子失败: {e}")
         raise HTTPException(status_code=500, detail="发布帖子失败")
 
-@app.post("/posts/{post_id}/like")
+@app.post("/posts/{post_id}/like",
+          summary="点赞帖子",
+          description="为指定帖子点赞，增加帖子的点赞数。",
+          response_description="点赞成功返回更新后的点赞数")
 async def like_post(post_id: str, db: Session = Depends(get_db)):
     """点赞帖子"""
     try:
@@ -478,8 +573,23 @@ async def like_post(post_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="点赞帖子失败")
 
 # 评论相关接口
-@app.get("/posts/{post_id}/comments")
-async def get_comments(post_id: str, sort: str = "time", db: Session = Depends(get_db)):
+@app.get("/posts/{post_id}/comments",
+         summary="获取帖子评论",
+         description="获取指定帖子的评论列表。支持按时间或点赞数排序。",
+         response_description="返回评论列表，包含评论者信息、点赞数等")
+async def get_comments(
+    post_id: str, 
+    sort: str = "time", 
+    db: Session = Depends(get_db)
+):
+    """
+    获取帖子评论列表
+    
+    Args:
+        post_id: 帖子ID，格式为 "post_数字"
+        sort: 排序方式，"time" 按时间排序，"likes" 按点赞数排序
+        db: 数据库会话
+    """
     """获取帖子评论列表"""
     try:
         # 从post_id中提取数字ID
@@ -523,8 +633,11 @@ async def get_comments(post_id: str, sort: str = "time", db: Session = Depends(g
         logger.error(f"获取评论列表失败: {e}")
         raise HTTPException(status_code=500, detail="获取评论列表失败")
 
-@app.post("/posts/{post_id}/comments")
-async def create_comment(post_id: str, comment_data: Dict[str, str], db: Session = Depends(get_db)):
+@app.post("/posts/{post_id}/comments",
+          summary="发布评论",
+          description="为指定帖子发布评论。评论内容不能超过140字符。",
+          response_description="发布成功返回评论详细信息")
+async def create_comment(post_id: str, comment_data: CreateCommentRequest, db: Session = Depends(get_db)):
     """发布评论"""
     try:
         # 从post_id中提取数字ID
@@ -533,12 +646,7 @@ async def create_comment(post_id: str, comment_data: Dict[str, str], db: Session
         except ValueError:
             raise HTTPException(status_code=400, detail="无效的帖子ID")
         
-        content = comment_data.get("content", "")
-        if not content:
-            raise HTTPException(status_code=400, detail="评论内容不能为空")
-        
-        if len(content) > 140:
-            raise HTTPException(status_code=400, detail="评论内容不能超过140字符")
+        content = comment_data.content
         
         # 检查帖子是否存在
         post = db.query(models.Post).filter(models.Post.post_id == numeric_id).first()
@@ -594,7 +702,10 @@ async def create_comment(post_id: str, comment_data: Dict[str, str], db: Session
         logger.error(f"发布评论失败: {e}")
         raise HTTPException(status_code=500, detail="发布评论失败")
 
-@app.post("/comments/{comment_id}/like")
+@app.post("/comments/{comment_id}/like",
+          summary="点赞评论",
+          description="为指定评论点赞，增加评论的点赞数。",
+          response_description="点赞成功返回更新后的点赞数")
 async def like_comment(comment_id: str, db: Session = Depends(get_db)):
     """点赞评论"""
     try:

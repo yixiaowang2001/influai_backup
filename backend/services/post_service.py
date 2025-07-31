@@ -14,7 +14,8 @@ from backend.database.crud import (
     create_comment,
     get_latest_n_posts,
     get_available_ai_users_by_attitude,
-    get_user_template_by_name
+    get_user_template_by_name,
+    get_user_template_by_id
 )
 from backend.models import (
     Post,
@@ -32,21 +33,24 @@ class PostService:
     def __init__(
             self,
             content: str,
-            template_name: str,
-            db,
+            template_name: str = None,
+            template_id: int = None,
+            db = None,
     ):
         """
         初始化帖子服务
         
         Args:
             content: 帖子内容
-            template_name: 用户模板名称
+            template_name: 用户模板名称（与template_id二选一）
+            template_id: 用户模板ID（与template_name二选一）
             db: 数据库会话
         """
         self.post = Post(
             post_content=content,
         )
         self.template_name = template_name
+        self.template_id = template_id
         self.db = db
         self.user_template = None
         self.lv1_seeds = None
@@ -61,9 +65,16 @@ class PostService:
 
     def _load_user_template(self):
         """从数据库加载用户模板"""
-        template = get_user_template_by_name(self.db, self.template_name)
-        if not template:
-            raise ValueError(f"未找到模板: {self.template_name}")
+        if self.template_id is not None:
+            template = get_user_template_by_id(self.db, self.template_id)
+            if not template:
+                raise ValueError(f"未找到模板ID: {self.template_id}")
+        elif self.template_name is not None:
+            template = get_user_template_by_name(self.db, self.template_name)
+            if not template:
+                raise ValueError(f"未找到模板: {self.template_name}")
+        else:
+            raise ValueError("必须提供template_name或template_id")
 
         # 将数据库对象转换为字典格式，保持与原有代码的兼容性
         self.user_template = {
@@ -155,12 +166,33 @@ class PostService:
         self.post.like_count = stats["pred_like_count"]
         self.new_follower_count = stats["pred_new_follower_count"]
         self.pred_comment_count = stats["pred_comment_count"]
-        self.lv1_seeds = generate_lv1_seeds(
+        
+        # 生成种子评论
+        raw_lv1_seeds = generate_lv1_seeds(
             persona=self.user_template["persona"],
             post_content=self.post.post_content,
             history_posts=self.history_posts,
             retry=RETRY_COUNT
         )
+        
+        # 将种子评论转换为嵌套格式（每个态度对应3个列表：短、中、长）
+        self.lv1_seeds = {}
+        for attitude, comments in raw_lv1_seeds.items():
+            if comments:
+                # 将评论分成3组
+                total_comments = len(comments)
+                short_count = max(1, total_comments // 3)
+                medium_count = max(1, total_comments // 3)
+                long_count = total_comments - short_count - medium_count
+                
+                self.lv1_seeds[attitude] = [
+                    comments[:short_count],  # 短评论
+                    comments[short_count:short_count + medium_count],  # 中评论
+                    comments[short_count + medium_count:]  # 长评论
+                ]
+            else:
+                # 如果没有评论，创建空的占位符
+                self.lv1_seeds[attitude] = [["默认评论"], ["默认评论"], ["默认评论"]]
 
     def expand_lv1_comments_by_attitude(
             self,
@@ -178,7 +210,7 @@ class PostService:
             List[Comment]: 扩展后的评论列表
         """
         if num == 0:
-            logger.warning("无需扩展评论")
+            logger.warning(f"态度 {attitude} 无需扩展评论")
             return []
         short_num = rand_int(num / 3)
         medium_num = rand_int(num / 3)
@@ -189,16 +221,26 @@ class PostService:
 
         for i in range(3):
             target_count = num_list[i]
+            if target_count == 0:
+                logger.debug(f"态度 {attitude} 的第 {i} 组目标数量为0，跳过")
+                continue
             generated_count = 0
             attitude_comments = []
 
             while generated_count < target_count:
                 current_batch = min(MAX_COMMENTS_PER_REQUEST, target_count - generated_count)
+                
+                # 检查种子评论是否可用
+                seed_comments = self.lv1_seeds[attitude][i]
+                if not seed_comments or seed_comments == ["默认评论"]:
+                    logger.warning(f"态度 {attitude} 的第 {i} 组种子评论不可用，跳过")
+                    break
+                
                 batch_comments = expand_lv1_comments(
                     persona=self.user_template["persona"],
                     post_content=self.post.post_content,
                     attitude_type=attitude,
-                    seed_comments=self.lv1_seeds[attitude][i],
+                    seed_comments=seed_comments,
                     expand_count=current_batch,
                     retry=RETRY_COUNT
                 )
@@ -250,3 +292,32 @@ class PostService:
         logger.info(f"生成了{len(self.comments)}条评论。")
 
         logger.info(f"生成的评论详情: {self.comments}")
+
+    def generate_comments_for_existing_post(self, post_id: int) -> None:
+        """为已存在的帖子生成评论"""
+        self.basic_update()
+        
+        logger.info("帖子服务已初始化")
+        logger.info(f"开始为帖子 {post_id} 生成{self.pred_comment_count}条评论...")
+        comment_nums_by_attitude = self.distribute_comment_nums(total=self.pred_comment_count)
+        for att in tqdm(Attitude.create_dict().keys()):
+            comment_count = comment_nums_by_attitude[str(att)]
+            expanded_comments = self.expand_lv1_comments_by_attitude(att, comment_count)
+            for comment in expanded_comments:
+                comment.post_id = post_id
+                ai_user_id = self.assign_ai_user_to_comment(comment)
+                if ai_user_id:
+                    comment.comment_user_id = ai_user_id
+                self.comments.append(comment)
+                create_comment(self.db, comment)
+
+        logger.info(f"为帖子 {post_id} 生成了{len(self.comments)}条评论。")
+
+        logger.info(f"生成的评论详情: {self.comments}")
+        
+        # 返回预测的统计数据，供调用者更新帖子
+        return {
+            "pred_like_count": self.post.like_count,
+            "pred_comment_count": self.pred_comment_count,
+            "new_follower_count": self.new_follower_count
+        }

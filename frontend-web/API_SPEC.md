@@ -110,9 +110,86 @@
 
 ---
 
-## 3. 帖子相关接口
+## 3. 用户模板相关接口
 
-### 3.1 获取最近帖子列表
+### 3.1 获取用户模板列表
+**GET** `/user-templates`
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": 1,
+      "name": "STAR",
+      "persona": "明星用户，拥有大量粉丝，影响力强",
+      "follower_count": 1000000,
+      "commenter_distribution": {
+        "positive": 0.6,
+        "neutral": 0.3,
+        "negative": 0.1
+      },
+      "default_avatar_path": "/avatars/star.jpg"
+    },
+    {
+      "id": 2,
+      "name": "INFLUENCER",
+      "persona": "网红用户，有一定影响力，粉丝互动活跃",
+      "follower_count": 100000,
+      "commenter_distribution": {
+        "positive": 0.5,
+        "neutral": 0.4,
+        "negative": 0.1
+      },
+      "default_avatar_path": "/avatars/influencer.jpg"
+    },
+    {
+      "id": 3,
+      "name": "CASTER",
+      "persona": "普通用户，粉丝数量较少，互动一般",
+      "follower_count": 1000,
+      "commenter_distribution": {
+        "positive": 0.4,
+        "neutral": 0.5,
+        "negative": 0.1
+      },
+      "default_avatar_path": "/avatars/caster.jpg"
+    }
+  ]
+}
+```
+
+### 3.2 根据用户模板初始化AI用户
+**POST** `/user-templates/{template_id}/init-ai-users`
+
+**路径参数:**
+- `template_id`: 用户模板ID（整数）
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": "成功根据模板 'STAR' (ID: 1) 初始化AI用户"
+}
+```
+
+**错误响应示例:**
+```json
+{
+  "code": 404,
+  "message": "未找到模板ID: 999",
+  "data": null
+}
+```
+
+---
+
+## 4. 帖子相关接口
+
+### 4.1 获取最近帖子列表
 **GET** `/posts`
 
 **响应示例:**
@@ -139,7 +216,7 @@
 }
 ```
 
-### 3.2 发布帖子
+### 4.2 发布帖子
 **POST** `/posts`
 
 **请求体:**
@@ -160,7 +237,7 @@
 }
 ```
 
-### 3.3 点赞帖子
+### 4.3 点赞帖子
 **POST** `/posts/{postId}/like`
 
 **响应示例:**
@@ -177,9 +254,9 @@
 
 ---
 
-## 4. 评论相关接口
+## 5. 评论相关接口
 
-### 4.1 获取帖子评论列表
+### 5.1 获取帖子评论列表
 **GET** `/posts/{postId}/comments`
 
 **查询参数:**
@@ -208,7 +285,7 @@
 }
 ```
 
-### 4.2 发布评论
+### 5.2 发布评论
 **POST** `/posts/{postId}/comments`
 
 **请求体:**
@@ -239,7 +316,7 @@
 }
 ```
 
-### 4.3 点赞评论
+### 5.3 点赞评论
 **POST** `/comments/{commentId}/like`
 
 **响应示例:**
@@ -256,14 +333,14 @@
 
 ---
 
-## 5. 实时更新机制
+## 6. 实时更新机制
 
-### 5.1 WebSocket 连接
+### 6.1 WebSocket 连接
 **WebSocket** `/ws/updates`
 
-### 5.2 推送消息格式
+### 6.2 推送消息格式
 
-#### 5.2.1 帖子点赞更新
+#### 6.2.1 帖子点赞更新
 ```json
 {
   "type": "post_like_update",
@@ -274,7 +351,7 @@
 }
 ```
 
-#### 5.2.2 新评论推送
+#### 6.2.2 新评论推送
 ```json
 {
   "type": "new_comment",
@@ -298,7 +375,7 @@
 }
 ```
 
-#### 5.2.3 评论点赞更新
+#### 6.2.3 评论点赞更新
 ```json
 {
   "type": "comment_like_update",
@@ -310,7 +387,7 @@
 }
 ```
 
-#### 5.2.4 帖子评论数更新
+#### 6.2.4 帖子评论数更新
 ```json
 {
   "type": "post_comments_update",
@@ -323,9 +400,9 @@
 
 ---
 
-## 6. 数据模型
+## 7. 数据模型
 
-### 6.1 用户模型
+### 7.1 用户模型
 ```json
 {
   "id": "string",        // 用户唯一标识
@@ -335,7 +412,7 @@
 }
 ```
 
-### 6.2 帖子模型
+### 7.2 帖子模型
 ```json
 {
   "id": "string",           // 帖子唯一标识
@@ -349,7 +426,7 @@
 }
 ```
 
-### 6.3 评论模型
+### 7.3 评论模型
 ```json
 {
   "id": "string",        // 评论唯一标识
@@ -364,49 +441,54 @@
 
 ---
 
-## 7. 接口调用时序
+## 8. 接口调用时序
 
-### 7.1 页面初始化
+### 8.1 页面初始化
 1. `GET /user/profile` - 获取用户信息
-2. `GET /posts` - 获取时间线帖子列表
-3. 建立 WebSocket 连接
+2. `GET /user-templates` - 获取用户模板列表
+3. `GET /posts` - 获取时间线帖子列表
+4. 建立 WebSocket 连接
 
-### 7.2 发布帖子
+### 8.2 初始化AI用户
+1. `POST /user-templates/{template_id}/init-ai-users` - 根据模板初始化AI用户
+2. 等待初始化完成，准备生成评论
+
+### 8.3 发布帖子
 1. `POST /posts` - 发布帖子
 2. 后端通过 WebSocket 推送新帖子给其他用户
 
-### 7.3 查看帖子详情
+### 8.4 查看帖子详情
 1. 点击帖子进入详情页
 2. `GET /posts/{postId}/comments?sort=time` - 获取评论列表
 
-### 7.4 发布评论
+### 8.5 发布评论
 1. `POST /posts/{postId}/comments` - 发布评论
 2. 后端通过 WebSocket 推送新评论和帖子评论数更新
 
-### 7.5 点赞操作
+### 8.6 点赞操作
 1. `POST /posts/{postId}/like` 或 `POST /comments/{commentId}/like`
 2. 后端通过 WebSocket 推送点赞数更新
 
 ---
 
-## 8. 实现说明
+## 9. 实现说明
 
-### 8.1 时间处理
+### 9.1 时间处理
 - 后端返回两个时间字段：
   - `timestamp`: 前端直接显示的格式化时间（如"刚刚"、"2分钟前"）
   - `createdAt`: ISO 8601 格式，用于前端排序和实时更新时间显示
 
-### 8.2 点赞机制
+### 9.2 点赞机制
 - 每个帖子/评论只能点赞一次，不能取消
 - 前端通过 `isLiked` 字段判断是否已点赞
 - 已点赞的帖子/评论不响应再次点赞请求
 
-### 8.3 排序功能
+### 9.3 排序功能
 - 评论支持按时间和按点赞数排序
 - 前端通过 `sort` 参数指定排序方式
 - 默认按时间排序（最新在上）
 
-### 8.4 实时更新
+### 9.4 实时更新
 - WebSocket 推送不定时的点赞和评论更新
 - 前端需要根据推送消息更新对应的UI
 - 推送消息包含完整的数据，前端直接替换即可 

@@ -216,6 +216,20 @@ def get_user_template_by_name(db: Session, template_name: str) -> Optional[model
     return db.query(models.UserTemplate).filter(models.UserTemplate.template_name == template_name).first()
 
 
+def get_user_template_by_id(db: Session, template_id: int) -> Optional[models.UserTemplate]:
+    """
+    根据模板ID获取用户模板
+    
+    Args:
+        db: 数据库会话
+        template_id: 模板ID
+        
+    Returns:
+        Optional[models.UserTemplate]: 用户模板对象，如果不存在则返回None
+    """
+    return db.query(models.UserTemplate).filter(models.UserTemplate.template_id == template_id).first()
+
+
 def get_all_user_templates(db: Session) -> List[models.UserTemplate]:
     """
     获取所有用户模板

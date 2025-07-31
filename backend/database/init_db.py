@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict, Any
 
 from backend.database import models
-from backend.database.crud import get_user_template_by_name
+from backend.database.crud import get_user_template_by_name, get_user_template_by_id
 from backend.database.database import engine, Base, get_db_session
 from backend.database.db_utils import init_ai_users
 from backend.utils.logger import get_logger
@@ -109,16 +109,25 @@ def insert_init_data(template_name: str = None) -> None:
 
         # 插入默认人类用户
         if not db.query(models.HumanUser).first():
+            # 获取用户模板以获取follower_count
+            user_template = get_user_template_by_id(db, 3)
+            if user_template:
+                follower_count = user_template.follower_count
+                logger.info(f"从模板ID 3 获取到follower_count: {follower_count}")
+            else:
+                follower_count = 0
+                logger.warning("未找到模板ID 3，使用默认follower_count: 0")
+            
             default_human_user = models.HumanUser(
                 username="默认主要用户",
                 user_template_id=3,
                 avatar_path="",
-                follower_count=0,
+                follower_count=follower_count,
                 created_at=datetime.now()
             )
             db.add(default_human_user)
             db.commit()
-            logger.info("成功插入默认人类用户数据。")
+            logger.info(f"成功插入默认人类用户数据，follower_count: {follower_count}。")
 
         # 如果提供了模板名称，则根据该模板初始化AI用户数据
         if template_name:
