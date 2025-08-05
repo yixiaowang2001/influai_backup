@@ -107,27 +107,23 @@ def insert_init_data(template_name: str = None) -> None:
         if not init_user_templates():
             raise Exception("用户模板初始化失败")
 
-        # 插入默认人类用户
+        # 插入多个人类用户，每个模板创建一个
         if not db.query(models.HumanUser).first():
-            # 获取用户模板以获取follower_count
-            user_template = get_user_template_by_id(db, 3)
-            if user_template:
-                follower_count = user_template.follower_count
-                logger.info(f"从模板ID 3 获取到follower_count: {follower_count}")
-            else:
-                follower_count = 0
-                logger.warning("未找到模板ID 3，使用默认follower_count: 0")
+            # 获取所有用户模板
+            user_templates = db.query(models.UserTemplate).all()
             
-            default_human_user = models.HumanUser(
-                username="默认主要用户",
-                user_template_id=3,
-                avatar_path="",
-                follower_count=follower_count,
-                created_at=datetime.now()
-            )
-            db.add(default_human_user)
+            for template in user_templates:
+                human_user = models.HumanUser(
+                    username=f"{template.template_name}用户",
+                    user_template_id=template.template_id,
+                    avatar_path=template.default_avatar_path,
+                    follower_count=template.follower_count,
+                    created_at=datetime.now()
+                )
+                db.add(human_user)
+            
             db.commit()
-            logger.info(f"成功插入默认人类用户数据，follower_count: {follower_count}。")
+            logger.info(f"成功插入 {len(user_templates)} 个人类用户数据。")
 
         # 如果提供了模板名称，则根据该模板初始化AI用户数据
         if template_name:

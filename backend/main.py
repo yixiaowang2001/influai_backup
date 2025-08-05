@@ -114,12 +114,6 @@ class GlobalUserManager:
     def get_current_user(self):
         """获取当前用户"""
         return self.current_human_user
-    
-    def clear_current_user(self):
-        """清除当前用户"""
-        if self.current_human_user:
-            logger.info(f"清除当前用户: {self.current_human_user.username}")
-        self.current_human_user = None
 
 # 全局用户管理器实例
 user_manager = GlobalUserManager()
@@ -163,14 +157,21 @@ manager = ConnectionManager()
 # 启动事件
 @app.on_event("startup")
 async def startup_event():
-    """应用启动时初始化数据库"""
-    logger.info("正在初始化数据库...")
+    """应用启动时的初始化操作"""
     try:
-        # 初始化数据库表结构和用户模板
-        init_database()
-        logger.info("数据库初始化完成")
+        logger.info("InfluAI Backend API 启动中...")
+        
+        # 初始化数据库（如果还没有初始化）
+        from backend.database.init_db import init_database
+        if init_database():
+            logger.info("数据库初始化完成")
+        else:
+            logger.warning("数据库初始化失败，但应用继续启动")
+        
+        logger.info("InfluAI Backend API 启动完成")
+        
     except Exception as e:
-        logger.error(f"数据库初始化失败: {e}")
+        logger.error(f"应用启动失败: {e}")
         raise
 
 # 通用响应格式
@@ -200,21 +201,33 @@ def format_timestamp(created_at: datetime) -> str:
         return f"{days}天前"
 
 
-async def generate_comments_for_post(post_id: int, user_template_id: int, db: Session):
+async def generate_comments_for_post(post_id: int, human_user_id: int, db: Session):
     """为帖子生成评论"""
     try:
-        logger.info(f"开始为帖子 {post_id} 生成评论...")
+        logger.info(f"开始为帖子 {post_id} 生成评论，人类用户ID: {human_user_id}...")
+        
+        # 获取人类用户信息
+        human_user = crud.get_human_user_by_id(db, human_user_id)
+        if not human_user:
+            logger.error(f"未找到人类用户ID: {human_user_id}")
+            return
         
         # 获取用户模板
-        template = crud.get_user_template_by_id(db, user_template_id)
+        template = crud.get_user_template_by_id(db, human_user.user_template_id)
         if not template:
-            logger.error(f"未找到模板ID: {user_template_id}")
+            logger.error(f"未找到模板ID: {human_user.user_template_id}")
             return
         
         # 获取帖子内容
         post = db.query(models.Post).filter(models.Post.post_id == post_id).first()
         if not post:
             logger.error(f"未找到帖子ID: {post_id}")
+            return
+        
+        # 获取该人类用户的所有AI用户
+        ai_users = crud.get_ai_users_by_human_user_id(db, human_user_id)
+        if not ai_users:
+            logger.warning(f"人类用户 {human_user_id} 没有对应的AI用户")
             return
         
         # 使用PostService生成评论
@@ -224,7 +237,6 @@ async def generate_comments_for_post(post_id: int, user_template_id: int, db: Se
         # 创建Post对象用于PostService
         post_for_service = PostModel(
             post_content=post.post_content,
-            author_id=post.author_id,
             like_count=post.like_count,
             created_at=post.created_at
         )
@@ -233,6 +245,7 @@ async def generate_comments_for_post(post_id: int, user_template_id: int, db: Se
         post_service = PostService(
             content=post.post_content,
             template_id=template.template_id,
+            human_user_id=human_user_id,
             db=db
         )
         
@@ -335,75 +348,36 @@ async def get_current_user():
         raise HTTPException(status_code=500, detail="获取当前用户信息失败")
 
 
-@app.delete("/user/current")
-async def clear_current_user():
-    """清除当前用户"""
-    try:
-        current_user = user_manager.get_current_user()
-        if not current_user:
-            return create_response(message="当前没有设置用户")
-        
-        user_manager.clear_current_user()
-        return create_response(message="当前用户已清除")
-    except Exception as e:
-        logger.error(f"清除当前用户失败: {e}")
-        raise HTTPException(status_code=500, detail="清除当前用户失败")
-
 # 用户模板相关接口
 @app.get("/user-templates",
          summary="获取用户模板列表",
          description="获取所有可用的用户模板，包含模板ID、名称、人设描述、粉丝数等信息。",
          response_description="返回用户模板列表")
 async def get_user_templates(db: Session = Depends(get_db)):
-    """获取所有用户模板"""
+    """获取用户模板列表"""
     try:
         templates = crud.get_all_user_templates(db)
         template_list = []
         for template in templates:
-            template_list.append({
+            template_data = {
                 "id": template.template_id,
                 "name": template.template_name,
                 "persona": template.persona,
                 "follower_count": template.follower_count,
                 "commenter_distribution": template.commenter_distribution,
                 "default_avatar_path": template.default_avatar_path
-            })
+            }
+            template_list.append(template_data)
+        
         return create_response(data=template_list)
     except Exception as e:
         logger.error(f"获取用户模板失败: {e}")
         raise HTTPException(status_code=500, detail="获取用户模板失败")
 
-@app.post("/user-templates/{template_id}/init-ai-users",
-          summary="根据用户模板初始化AI用户",
-          description="根据指定的用户模板ID初始化AI用户数据。如果AI用户已存在则跳过初始化。",
-          response_description="初始化成功返回状态信息")
-async def init_ai_users_by_template(template_id: int, db: Session = Depends(get_db)):
-    """根据用户模板初始化AI用户"""
-    try:
-        template = crud.get_user_template_by_id(db, template_id)
-        if not template:
-            raise HTTPException(status_code=404, detail=f"未找到模板ID: {template_id}")
-        
-        # 检查是否已经有AI用户
-        existing_users = crud.get_all_ai_users(db)
-        if existing_users:
-            return create_response(message="AI用户已存在，跳过初始化")
-        
-        # 初始化AI用户
-        from backend.database.init_db import insert_init_data
-        insert_init_data(template.template_name)
-        
-        return create_response(message=f"成功根据模板 '{template.template_name}' (ID: {template_id}) 初始化AI用户")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"初始化AI用户失败: {e}")
-        raise HTTPException(status_code=500, detail="初始化AI用户失败")
-
 
 @app.post("/user/set-current", 
           summary="设置当前用户",
-          description="通过用户ID设置当前全局用户，用于后续的帖子发布等操作。同时只能有一个当前用户，设置新用户会覆盖之前的用户。",
+          description="通过用户ID设置当前全局用户，用于后续的帖子发布等操作。同时只能有一个当前用户，设置新用户会覆盖之前的用户。如果该用户没有对应的AI用户，会自动根据用户模板创建AI用户。",
           response_description="设置成功返回用户信息")
 async def set_current_user(user_data: SetCurrentUserRequest, db: Session = Depends(get_db)):
     """设置当前用户（通过human_user_id设置）"""
@@ -415,6 +389,34 @@ async def set_current_user(user_data: SetCurrentUserRequest, db: Session = Depen
         if not human_user:
             raise HTTPException(status_code=404, detail=f"未找到用户ID: {human_user_id}")
         
+        # 检查该用户是否已有对应的AI用户
+        existing_ai_users = crud.get_ai_users_by_human_user_id(db, human_user_id)
+        
+        # 如果没有AI用户，则根据用户模板创建AI用户
+        if not existing_ai_users:
+            # 获取用户模板
+            template = crud.get_user_template_by_id(db, human_user.user_template_id)
+            if template:
+                # 将数据库对象转换为字典格式
+                user_template_dict = {
+                    "persona": template.persona,
+                    "follower_count": template.follower_count,
+                    "commenter_distribution": template.commenter_distribution,
+                    "default_avatar_path": template.default_avatar_path
+                }
+                
+                # 初始化AI用户
+                from backend.database.db_utils import init_ai_users
+                all_ai_users = init_ai_users(user_template_dict, human_user_id)
+                
+                for ai_user in all_ai_users:
+                    db.add(ai_user)
+                db.commit()
+                
+                logger.info(f"为人类用户 {human_user.username} (ID: {human_user_id}) 成功创建 {len(all_ai_users)} 个AI用户")
+            else:
+                logger.warning(f"未找到用户模板ID: {human_user.user_template_id}")
+        
         # 设置为当前用户（会覆盖之前的用户）
         user_manager.set_current_user(human_user)
         
@@ -422,7 +424,7 @@ async def set_current_user(user_data: SetCurrentUserRequest, db: Session = Depen
             "humanUserId": human_user.user_id,
             "humanUsername": human_user.username,
             "userTemplateId": human_user.user_template_id,
-            "message": "当前用户设置成功"
+            "message": "当前用户设置成功" + (f"，已创建 {len(existing_ai_users) if existing_ai_users else len(all_ai_users)} 个AI用户" if not existing_ai_users else "")
         })
     except HTTPException:
         raise
@@ -520,7 +522,7 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
         
         # 同步生成评论（便于调试）
         try:
-            await generate_comments_for_post(created_post.post_id, current_user.user_template_id, db)
+            await generate_comments_for_post(created_post.post_id, current_user.user_id, db)
         except Exception as e:
             logger.error(f"生成评论时出错: {e}")
             # 不阻塞帖子发布，继续返回响应
@@ -608,19 +610,49 @@ async def get_comments(
         
         comment_list = []
         for comment in comments:
-            # 获取AI用户信息
-            ai_user = None
-            if comment.ai_user_id:
-                ai_user = crud.get_ai_user(db, comment.ai_user_id)
+            # 根据sender_type获取用户信息
+            author_info = {}
+            if comment.sender_type == "ai_user":
+                # 获取AI用户信息
+                ai_user = crud.get_ai_user(db, comment.sender_id)
+                if ai_user:
+                    author_info = {
+                        "id": ai_user.user_id,
+                        "username": ai_user.username,
+                        "userId": f"@{ai_user.username.lower()}"
+                    }
+                else:
+                    author_info = {
+                        "id": "unknown",
+                        "username": "未知AI用户",
+                        "userId": "@unknown"
+                    }
+            elif comment.sender_type == "human_user":
+                # 获取人类用户信息
+                human_user = crud.get_human_user_by_id(db, int(comment.sender_id))
+                if human_user:
+                    author_info = {
+                        "id": f"human_{human_user.user_id}",
+                        "username": human_user.username,
+                        "userId": f"@{human_user.username.lower()}"
+                    }
+                else:
+                    author_info = {
+                        "id": "unknown",
+                        "username": "未知用户",
+                        "userId": "@unknown"
+                    }
+            else:
+                author_info = {
+                    "id": "unknown",
+                    "username": "未知用户",
+                    "userId": "@unknown"
+                }
             
             comment_data = {
                 "id": f"comment_{comment.comment_id}",
                 "content": comment.comment_content,
-                "author": {
-                    "id": ai_user.user_id if ai_user else "unknown",
-                    "username": ai_user.username if ai_user else "未知用户",
-                    "userId": f"@{ai_user.username.lower()}" if ai_user else "@unknown"
-                },
+                "author": author_info,
                 "timestamp": format_timestamp(comment.created_at),
                 "createdAt": comment.created_at.isoformat(),
                 "likes": comment.comment_likes,
@@ -635,11 +667,16 @@ async def get_comments(
 
 @app.post("/posts/{post_id}/comments",
           summary="发布评论",
-          description="为指定帖子发布评论。评论内容不能超过140字符。",
+          description="为指定帖子发布评论。评论内容不能超过140字符。当前用户必须是已设置的人类用户。",
           response_description="发布成功返回评论详细信息")
 async def create_comment(post_id: str, comment_data: CreateCommentRequest, db: Session = Depends(get_db)):
     """发布评论"""
     try:
+        # 检查当前用户是否已设置
+        current_user = user_manager.get_current_user()
+        if not current_user:
+            raise HTTPException(status_code=400, detail="请先设置当前用户")
+        
         # 从post_id中提取数字ID
         try:
             numeric_id = int(post_id.replace("post_", ""))
@@ -653,37 +690,29 @@ async def create_comment(post_id: str, comment_data: CreateCommentRequest, db: S
         if not post:
             raise HTTPException(status_code=404, detail="帖子不存在")
         
-        # 创建评论（这里简化处理，实际应该根据AI用户生成评论）
-        # 直接创建Comment对象并添加到数据库
-        new_comment = models.Comment(
+        # 创建评论（当前用户发布）
+        new_comment = crud.create_comment_with_sender(
+            db=db,
             comment_content=content,
-            comment_user_type=1,  # 简化处理
-            comment_level=1,
-            comment_likes=0,
-            master_comment_id=None,
-            created_at=datetime.now(),
-            send_at=datetime.now(),
             post_id=numeric_id,
-            ai_user_id=None  # 简化处理，实际应该分配AI用户
+            sender_id=str(current_user.user_id),
+            sender_type="human_user",
+            comment_user_type=1,
+            comment_level=1
         )
-        
-        db.add(new_comment)
-        db.commit()
-        db.refresh(new_comment)
-        created_comment = new_comment
         
         # 返回创建的评论数据
         comment_response = {
-            "id": f"comment_{created_comment.comment_id}",
-            "content": created_comment.comment_content,
+            "id": f"comment_{new_comment.comment_id}",
+            "content": new_comment.comment_content,
             "author": {
-                "id": "user_12345",
-                "username": "默认用户",
-                "userId": "@example_user"
+                "id": f"human_{current_user.user_id}",
+                "username": current_user.username,
+                "userId": f"@{current_user.username.lower()}"
             },
-            "timestamp": format_timestamp(created_comment.created_at),
-            "createdAt": created_comment.created_at.isoformat(),
-            "likes": created_comment.comment_likes,
+            "timestamp": format_timestamp(new_comment.created_at),
+            "createdAt": new_comment.created_at.isoformat(),
+            "likes": new_comment.comment_likes,
             "isLiked": False
         }
         

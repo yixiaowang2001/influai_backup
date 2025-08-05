@@ -34,15 +34,17 @@ class AIUser(Base):
     username = Column(String(100), nullable=False)
     avatar_path = Column(String(255), default="")
     attitude_value = Column(Float, default=0.0)
+    human_user_id = Column(Integer, ForeignKey("human_users.user_id"), nullable=False)
     created_at = Column(DateTime, default=datetime.now)
 
-    comments = relationship("Comment", back_populates="ai_user")
+    comments = relationship("Comment", back_populates="ai_user", foreign_keys="Comment.sender_id", primaryjoin="and_(AIUser.user_id==Comment.sender_id, Comment.sender_type=='ai_user')")
+    human_user = relationship("HumanUser", back_populates="ai_users")
 
     def __repr__(self):
-        return f"<AIUser(id='{self.user_id}', username='{self.username}', attitude={self.attitude_value})>"
+        return f"<AIUser(id='{self.user_id}', username='{self.username}', attitude={self.attitude_value}, human_user_id={self.human_user_id})>"
 
     def __str__(self):
-        return f"AI用户: {self.username} (态度值: {self.attitude_value})"
+        return f"AI用户: {self.username} (态度值: {self.attitude_value}, 所属人类用户: {self.human_user_id})"
 
 
 class Comment(Base):
@@ -58,19 +60,20 @@ class Comment(Base):
     send_at = Column(DateTime, nullable=True)
 
     post_id = Column(Integer, ForeignKey("posts.post_id"), nullable=False)
-    ai_user_id = Column(String(36), ForeignKey("ai_users.user_id"), nullable=True)
+    sender_id = Column(String(36), nullable=False)  # 可以是AI用户ID或人类用户ID
+    sender_type = Column(String(10), nullable=False)  # 'ai_user' 或 'human_user'
 
     post = relationship("Post", back_populates="comments")
-    ai_user = relationship("AIUser", back_populates="comments")
+    ai_user = relationship("AIUser", back_populates="comments", foreign_keys=[sender_id], primaryjoin="and_(Comment.sender_id==AIUser.user_id, Comment.sender_type=='ai_user')")
 
     parent_comment = relationship("Comment", remote_side=[comment_id])
 
     def __repr__(self):
         content_preview = self.comment_content[:30] + "..." if len(self.comment_content) > 30 else self.comment_content
-        return f"<Comment(id={self.comment_id}, content='{content_preview}', likes={self.comment_likes})>"
+        return f"<Comment(id={self.comment_id}, content='{content_preview}', likes={self.comment_likes}, sender_type={self.sender_type})>"
 
     def __str__(self):
-        return f"评论#{self.comment_id}: {self.comment_content[:20]}... (点赞:{self.comment_likes})"
+        return f"评论#{self.comment_id}: {self.comment_content[:20]}... (点赞:{self.comment_likes}, 发送者类型:{self.sender_type})"
 
 
 class UserTemplate(Base):
@@ -100,6 +103,8 @@ class HumanUser(Base):
     avatar_path = Column(String(255), default="")
     follower_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
+
+    ai_users = relationship("AIUser", back_populates="human_user")
 
     def __repr__(self):
         return f"<HumanUser(id={self.user_id}, username='{self.username}', template_id={self.user_template_id})>"

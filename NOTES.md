@@ -2,9 +2,6 @@
 
 ## TODO
 - 接口
-  - 3
-    - 需要重新思考一个问题，current user是不是需要切换数据库？因为目前除了human user以外，所有的数据库逻辑里面都不包含current user这个概念，换句话说，我ai user的数量应该是远高于2 * 粉丝数量的（因为有不同human user）
-    - user template方法，init ai user中，是直接插入，还是清空数据库后重新插入？
   - 4
   - 5
   - 6

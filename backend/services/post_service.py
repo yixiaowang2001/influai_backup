@@ -35,6 +35,7 @@ class PostService:
             content: str,
             template_name: str = None,
             template_id: int = None,
+            human_user_id: int = None,
             db = None,
     ):
         """
@@ -44,6 +45,7 @@ class PostService:
             content: 帖子内容
             template_name: 用户模板名称（与template_id二选一）
             template_id: 用户模板ID（与template_name二选一）
+            human_user_id: 人类用户ID，用于限制AI用户选择范围
             db: 数据库会话
         """
         self.post = Post(
@@ -51,6 +53,7 @@ class PostService:
         )
         self.template_name = template_name
         self.template_id = template_id
+        self.human_user_id = human_user_id
         self.db = db
         self.user_template = None
         self.lv1_seeds = None
@@ -119,16 +122,25 @@ class PostService:
             exclude_user_ids=list(self.assigned_ai_users)
         )
 
+        # 如果指定了human_user_id，只选择该人类用户的AI用户
+        if self.human_user_id is not None:
+            available_users = [user for user in available_users if user.human_user_id == self.human_user_id]
+
         if not available_users:
-            logger.warning(f"没有可用的AI用户用于态度 {comment.comment_attitude}")
+            logger.warning(f"没有可用的AI用户用于态度 {comment.comment_attitude}" + (f"，人类用户ID: {self.human_user_id}" if self.human_user_id else ""))
             # 如果没有可用用户，重置已分配用户列表（允许重复分配）
             self.assigned_ai_users.clear()
             available_users = get_available_ai_users_by_attitude(
                 db=self.db,
                 attitude_type=comment.comment_attitude
             )
+            
+            # 再次过滤human_user_id
+            if self.human_user_id is not None:
+                available_users = [user for user in available_users if user.human_user_id == self.human_user_id]
+            
             if not available_users:
-                logger.error(f"数据库中没有任何AI用户符合态度 {comment.comment_attitude}")
+                logger.error(f"数据库中没有任何AI用户符合态度 {comment.comment_attitude}" + (f"，人类用户ID: {self.human_user_id}" if self.human_user_id else ""))
                 return None
 
         # 计算每个用户的权重（基于态度值的绝对值）
@@ -146,7 +158,7 @@ class PostService:
         # 记录已分配的用户
         self.assigned_ai_users.add(selected_user.user_id)
 
-        logger.debug(f"为评论分配AI用户: {selected_user.username} (态度值: {selected_user.attitude_value})")
+        logger.debug(f"为评论分配AI用户: {selected_user.username} (态度值: {selected_user.attitude_value}, 人类用户ID: {selected_user.human_user_id})")
 
         return selected_user.user_id
 

@@ -89,24 +89,18 @@
   "message": "success",
   "data": {
     "humanUserId": 1,
-    "humanUsername": "默认主要用户",
+    "humanUsername": "STAR用户",
     "userTemplateId": 1,
-    "message": "当前用户设置成功"
+    "message": "当前用户设置成功，已创建 2000000 个AI用户"
   }
 }
 ```
 
-### 2.5 清除当前用户
-**DELETE** `/user/current`
-
-**响应示例:**
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": null
-}
-```
+**说明:**
+- 设置当前用户后，如果该用户没有对应的AI用户，系统会自动根据用户模板创建AI用户
+- AI用户数量为人类用户粉丝数的2倍
+- 每个人类用户都有独立的AI用户群体
+- 同时只能有一个当前用户，设置新用户会覆盖之前的用户
 
 ---
 
@@ -132,56 +126,8 @@
         "negative": 0.1
       },
       "default_avatar_path": "/avatars/star.jpg"
-    },
-    {
-      "id": 2,
-      "name": "INFLUENCER",
-      "persona": "网红用户，有一定影响力，粉丝互动活跃",
-      "follower_count": 100000,
-      "commenter_distribution": {
-        "positive": 0.5,
-        "neutral": 0.4,
-        "negative": 0.1
-      },
-      "default_avatar_path": "/avatars/influencer.jpg"
-    },
-    {
-      "id": 3,
-      "name": "CASTER",
-      "persona": "普通用户，粉丝数量较少，互动一般",
-      "follower_count": 1000,
-      "commenter_distribution": {
-        "positive": 0.4,
-        "neutral": 0.5,
-        "negative": 0.1
-      },
-      "default_avatar_path": "/avatars/caster.jpg"
     }
   ]
-}
-```
-
-### 3.2 根据用户模板初始化AI用户
-**POST** `/user-templates/{template_id}/init-ai-users`
-
-**路径参数:**
-- `template_id`: 用户模板ID（整数）
-
-**响应示例:**
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": "成功根据模板 'STAR' (ID: 1) 初始化AI用户"
-}
-```
-
-**错误响应示例:**
-```json
-{
-  "code": 404,
-  "message": "未找到模板ID: 999",
-  "data": null
 }
 ```
 
@@ -304,9 +250,9 @@
     "id": "comment_11112", 
     "content": "评论内容，最多140字符",
     "author": {
-      "id": "user_12345",
-      "username": "默认用户",
-      "userId": "@example_user"
+      "id": "human_1",
+      "username": "STAR用户",
+      "userId": "@star用户"
     },
     "timestamp": "刚刚",
     "createdAt": "2024-01-15T10:45:00Z",
@@ -315,6 +261,11 @@
   }
 }
 ```
+
+**说明:**
+- 发布评论需要先设置当前用户
+- 评论作者为当前设置的人类用户
+- AI用户会自动为帖子生成评论，无需手动发布
 
 ### 5.3 点赞评论
 **POST** `/comments/{commentId}/like`
@@ -431,7 +382,7 @@
 {
   "id": "string",        // 评论唯一标识
   "content": "string",   // 评论内容
-  "author": "User",      // 作者信息
+  "author": "User",      // 作者信息（AI用户或人类用户）
   "timestamp": "string", // 格式化的时间显示
   "createdAt": "string", // 创建时间（用于排序）
   "likes": "number",     // 点赞数
@@ -439,18 +390,22 @@
 }
 ```
 
+**作者信息说明:**
+- AI用户评论：`author.id` 为AI用户ID，`author.username` 为AI用户名
+- 人类用户评论：`author.id` 为 `human_用户ID`，`author.username` 为人类用户名
+
 ---
 
 ## 8. 接口调用时序
 
 ### 8.1 页面初始化
-1. `GET /user/profile` - 获取用户信息
+1. `GET /user/profile` - 获取所有人类用户信息
 2. `GET /user-templates` - 获取用户模板列表
 3. `GET /posts` - 获取时间线帖子列表
 4. 建立 WebSocket 连接
 
-### 8.2 初始化AI用户
-1. `POST /user-templates/{template_id}/init-ai-users` - 根据模板初始化AI用户
+### 8.2 选择角色并初始化
+1. `POST /user/set-current` - 设置当前用户（会自动创建对应的AI用户）
 2. 等待初始化完成，准备生成评论
 
 ### 8.3 发布帖子
@@ -462,12 +417,21 @@
 2. `GET /posts/{postId}/comments?sort=time` - 获取评论列表
 
 ### 8.5 发布评论
-1. `POST /posts/{postId}/comments` - 发布评论
+1. `POST /posts/{postId}/comments` - 发布评论（需要先设置当前用户）
 2. 后端通过 WebSocket 推送新评论和帖子评论数更新
 
 ### 8.6 点赞操作
 1. `POST /posts/{postId}/like` 或 `POST /comments/{commentId}/like`
 2. 后端通过 WebSocket 推送点赞数更新
+
+### 8.7 切换角色
+1. `POST /user/set-current` - 设置新的当前用户（会自动覆盖之前的用户）
+2. 系统会自动为该用户创建AI用户（如果还没有的话）
+3. 继续使用新角色的功能
+
+**说明：**
+- 无需先清除当前用户，直接设置新用户即可
+- 系统会自动处理用户切换，同时只能有一个当前用户
 
 ---
 

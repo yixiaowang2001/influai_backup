@@ -6,7 +6,7 @@ from backend.models.attitude import Attitude
 from backend.utils.global_utils import distribute_by_ratio
 
 
-def init_ai_users(user_template: dict):
+def init_ai_users(user_template: dict, human_user_id: int):
     """
     随机生成n个AI用户对象，不进行数据库操作，直接返回AIUser对象列表。
     用户数量为人类用户粉丝数的两倍。
@@ -14,6 +14,7 @@ def init_ai_users(user_template: dict):
     另一半根据commenter_distribution在不同态度范围内随机生成两位小数的attitude_value。
 
     :param user_template: 人类用户模版，包含follower_count和commenter_distribution
+    :param human_user_id: 所属的人类用户ID
     :return: AIUser对象列表
     """
     ai_users = []
@@ -32,6 +33,7 @@ def init_ai_users(user_template: dict):
             username=username,
             avatar_path="/data/default_avatars/test.png",
             attitude_value=0.0,
+            human_user_id=human_user_id,
         )
         ai_users.append(ai_user)
 
@@ -61,6 +63,7 @@ def init_ai_users(user_template: dict):
                     username=username,
                     avatar_path="/data/default_avatars/test.png",
                     attitude_value=attitude_value,
+                    human_user_id=human_user_id,
                 )
                 ai_users.append(ai_user)
 

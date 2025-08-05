@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -114,6 +115,17 @@ def create_comment(db: Session, comment: CommentModel) -> models.Comment:
         models.Comment: 创建的评论对象
     """
     logger.debug(f"开始创建评论，内容长度: {len(comment.comment_content)}，态度: {comment.comment_attitude}")
+    
+    # 确定sender_type和sender_id
+    if comment.comment_user_id:
+        # 如果是AI用户评论
+        sender_type = "ai_user"
+        sender_id = comment.comment_user_id
+    else:
+        # 如果是人类用户评论（这种情况不应该发生，因为AI评论必须有comment_user_id）
+        sender_type = "human_user"
+        sender_id = str(comment.post_id)  # 临时使用post_id，实际应该从其他地方获取
+    
     db_comment = models.Comment(
         comment_content=comment.comment_content,
         comment_user_type=comment.comment_user_type,
@@ -123,12 +135,13 @@ def create_comment(db: Session, comment: CommentModel) -> models.Comment:
         created_at=comment.created_at,
         send_at=comment.send_at,
         post_id=comment.post_id,
-        ai_user_id=comment.comment_user_id
+        sender_id=sender_id,
+        sender_type=sender_type
     )
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
-    logger.info(f"成功创建评论，ID: {db_comment.comment_id}，帖子ID: {db_comment.post_id}")
+    logger.info(f"成功创建评论，ID: {db_comment.comment_id}，帖子ID: {db_comment.post_id}，发送者类型: {sender_type}")
     return db_comment
 
 
@@ -281,3 +294,67 @@ def get_all_human_users(db: Session) -> List[models.HumanUser]:
         List[models.HumanUser]: 所有人类用户列表
     """
     return db.query(models.HumanUser).all()
+
+
+def get_ai_users_by_human_user_id(db: Session, human_user_id: int) -> List[models.AIUser]:
+    """
+    根据人类用户ID获取所有AI用户
+    
+    Args:
+        db: 数据库会话
+        human_user_id: 人类用户ID
+        
+    Returns:
+        List[models.AIUser]: AI用户列表
+    """
+    return db.query(models.AIUser).filter(models.AIUser.human_user_id == human_user_id).all()
+
+
+def get_human_user_by_id_for_ai_init(db: Session, user_id: int) -> Optional[models.HumanUser]:
+    """
+    根据用户ID获取人类用户，用于AI用户初始化
+    
+    Args:
+        db: 数据库会话
+        user_id: 用户ID
+        
+    Returns:
+        Optional[models.HumanUser]: 人类用户对象，如果不存在则返回None
+    """
+    return db.query(models.HumanUser).filter(models.HumanUser.user_id == user_id).first()
+
+
+def create_comment_with_sender(db: Session, comment_content: str, post_id: int, sender_id: str, sender_type: str, comment_user_type: int = 1, comment_level: int = 1) -> models.Comment:
+    """
+    创建评论（支持AI用户和人类用户）
+    
+    Args:
+        db: 数据库会话
+        comment_content: 评论内容
+        post_id: 帖子ID
+        sender_id: 发送者ID（AI用户ID或人类用户ID）
+        sender_type: 发送者类型（'ai_user' 或 'human_user'）
+        comment_user_type: 评论用户类型
+        comment_level: 评论级别
+        
+    Returns:
+        models.Comment: 创建的评论对象
+    """
+    logger.debug(f"开始创建评论，发送者类型: {sender_type}, 发送者ID: {sender_id}")
+    db_comment = models.Comment(
+        comment_content=comment_content,
+        comment_user_type=comment_user_type,
+        comment_level=comment_level,
+        comment_likes=0,
+        master_comment_id=None,
+        created_at=datetime.now(),
+        send_at=datetime.now(),
+        post_id=post_id,
+        sender_id=sender_id,
+        sender_type=sender_type
+    )
+    db.add(db_comment)
+    db.commit()
+    db.refresh(db_comment)
+    logger.info(f"成功创建评论，ID: {db_comment.comment_id}, 发送者类型: {sender_type}")
+    return db_comment
