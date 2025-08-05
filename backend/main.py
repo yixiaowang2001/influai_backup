@@ -99,6 +99,32 @@ app = FastAPI(
         "name": "MIT",
         "url": "https://opensource.org/licenses/MIT",
     },
+    openapi_tags=[
+        {
+            "name": "用户管理",
+            "description": "人类用户相关接口，包括用户信息获取、角色切换等",
+        },
+        {
+            "name": "用户模板",
+            "description": "用户模板相关接口，获取可用的用户模板信息",
+        },
+        {
+            "name": "帖子管理",
+            "description": "帖子相关接口，包括发布、获取、点赞等",
+        },
+        {
+            "name": "评论管理",
+            "description": "评论相关接口，包括发布、获取、点赞等",
+        },
+        {
+            "name": "WebSocket",
+            "description": "WebSocket实时更新接口",
+        },
+        {
+            "name": "系统",
+            "description": "系统健康检查等接口",
+        },
+    ],
 )
 
 # 全局用户管理
@@ -274,7 +300,11 @@ async def generate_comments_for_post(post_id: int, human_user_id: int, db: Sessi
         logger.error(f"错误详情: {traceback.format_exc()}")
 
 # 用户相关接口
-@app.get("/user/profile")
+@app.get("/user/profile",
+         summary="获取所有人类用户信息",
+         description="获取系统中所有人类用户的信息列表，包括用户ID、用户名、模板ID等。",
+         response_description="返回所有人类用户信息列表",
+         tags=["用户管理"])
 async def get_all_human_users(db: Session = Depends(get_db)):
     """获取所有人类用户信息"""
     try:
@@ -298,7 +328,11 @@ async def get_all_human_users(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="获取所有人类用户信息失败")
 
 
-@app.get("/user/profile/{human_user_id}")
+@app.get("/user/profile/{human_user_id}",
+         summary="获取特定人类用户信息",
+         description="根据用户ID获取特定人类用户的详细信息。",
+         response_description="返回指定人类用户的信息",
+         tags=["用户管理"])
 async def get_human_user_by_id(human_user_id: int, db: Session = Depends(get_db)):
     """获取特定人类用户信息"""
     try:
@@ -324,7 +358,11 @@ async def get_human_user_by_id(human_user_id: int, db: Session = Depends(get_db)
         raise HTTPException(status_code=500, detail="获取用户信息失败")
 
 
-@app.get("/user/current")
+@app.get("/user/current",
+         summary="获取当前用户信息",
+         description="获取当前设置的全局用户信息。",
+         response_description="返回当前用户信息",
+         tags=["用户管理"])
 async def get_current_user():
     """获取当前用户信息"""
     try:
@@ -352,7 +390,8 @@ async def get_current_user():
 @app.get("/user-templates",
          summary="获取用户模板列表",
          description="获取所有可用的用户模板，包含模板ID、名称、人设描述、粉丝数等信息。",
-         response_description="返回用户模板列表")
+         response_description="返回用户模板列表",
+         tags=["用户模板"])
 async def get_user_templates(db: Session = Depends(get_db)):
     """获取用户模板列表"""
     try:
@@ -378,7 +417,8 @@ async def get_user_templates(db: Session = Depends(get_db)):
 @app.post("/user/set-current", 
           summary="设置当前用户",
           description="通过用户ID设置当前全局用户，用于后续的帖子发布等操作。同时只能有一个当前用户，设置新用户会覆盖之前的用户。如果该用户没有对应的AI用户，会自动根据用户模板创建AI用户。",
-          response_description="设置成功返回用户信息")
+          response_description="设置成功返回用户信息",
+          tags=["用户管理"])
 async def set_current_user(user_data: SetCurrentUserRequest, db: Session = Depends(get_db)):
     """设置当前用户（通过human_user_id设置）"""
     try:
@@ -439,7 +479,8 @@ async def set_current_user(user_data: SetCurrentUserRequest, db: Session = Depen
 @app.get("/posts",
          summary="获取帖子列表",
          description="获取最新的帖子列表（时间线），返回最新的50条帖子。",
-         response_description="返回帖子列表，包含作者信息、点赞数、评论数等")
+         response_description="返回帖子列表，包含作者信息、点赞数、评论数等",
+         tags=["帖子管理"])
 async def get_posts(db: Session = Depends(get_db)):
     """获取帖子列表（时间线）"""
     try:
@@ -474,7 +515,8 @@ async def get_posts(db: Session = Depends(get_db)):
 @app.post("/posts",
           summary="发布帖子",
           description="发布新帖子。需要先设置当前用户，帖子内容不能超过140字符。发布后会自动根据用户模板生成AI评论。",
-          response_description="发布成功返回帖子详细信息")
+          response_description="发布成功返回帖子详细信息",
+          tags=["帖子管理"])
 async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db)):
     """发布帖子"""
     try:
@@ -538,7 +580,8 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
 @app.post("/posts/{post_id}/like",
           summary="点赞帖子",
           description="为指定帖子点赞，增加帖子的点赞数。",
-          response_description="点赞成功返回更新后的点赞数")
+          response_description="点赞成功返回更新后的点赞数",
+          tags=["帖子管理"])
 async def like_post(post_id: str, db: Session = Depends(get_db)):
     """点赞帖子"""
     try:
@@ -578,7 +621,8 @@ async def like_post(post_id: str, db: Session = Depends(get_db)):
 @app.get("/posts/{post_id}/comments",
          summary="获取帖子评论",
          description="获取指定帖子的评论列表。支持按时间或点赞数排序。",
-         response_description="返回评论列表，包含评论者信息、点赞数等")
+         response_description="返回评论列表，包含评论者信息、点赞数等",
+         tags=["评论管理"])
 async def get_comments(
     post_id: str, 
     sort: str = "time", 
@@ -668,7 +712,8 @@ async def get_comments(
 @app.post("/posts/{post_id}/comments",
           summary="发布评论",
           description="为指定帖子发布评论。评论内容不能超过140字符。当前用户必须是已设置的人类用户。",
-          response_description="发布成功返回评论详细信息")
+          response_description="发布成功返回评论详细信息",
+          tags=["评论管理"])
 async def create_comment(post_id: str, comment_data: CreateCommentRequest, db: Session = Depends(get_db)):
     """发布评论"""
     try:
@@ -734,7 +779,8 @@ async def create_comment(post_id: str, comment_data: CreateCommentRequest, db: S
 @app.post("/comments/{comment_id}/like",
           summary="点赞评论",
           description="为指定评论点赞，增加评论的点赞数。",
-          response_description="点赞成功返回更新后的点赞数")
+          response_description="点赞成功返回更新后的点赞数",
+          tags=["评论管理"])
 async def like_comment(comment_id: str, db: Session = Depends(get_db)):
     """点赞评论"""
     try:
@@ -785,7 +831,11 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 # 健康检查接口
-@app.get("/health")
+@app.get("/health",
+         summary="健康检查",
+         description="检查服务运行状态。",
+         response_description="返回服务运行状态",
+         tags=["系统"])
 async def health_check():
     """健康检查接口"""
     return create_response(message="服务运行正常")
