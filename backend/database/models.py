@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from backend.database.database import Base
@@ -53,7 +53,7 @@ class Comment(Base):
     comment_id = Column(Integer, primary_key=True, index=True)
     comment_content = Column(Text, nullable=False)
     comment_user_type = Column(Integer, nullable=False)
-    comment_level = Column(Integer, nullable=False)
+    comment_level = Column(Integer, default=0)
     comment_likes = Column(Integer, default=0)
     master_comment_id = Column(Integer, ForeignKey("comments.comment_id"), nullable=True)
     created_at = Column(DateTime, default=datetime.now)
@@ -64,7 +64,7 @@ class Comment(Base):
     sender_type = Column(String(10), nullable=False)  # 'ai_user' 或 'human_user'
 
     post = relationship("Post", back_populates="comments")
-    ai_user = relationship("AIUser", back_populates="comments", foreign_keys=[sender_id], primaryjoin="and_(Comment.sender_id==AIUser.user_id, Comment.sender_type=='ai_user')")
+    ai_user = relationship("AIUser", back_populates="comments", foreign_keys=[sender_id], primaryjoin="and_(AIUser.user_id==Comment.sender_id, Comment.sender_type=='ai_user')")
 
     parent_comment = relationship("Comment", remote_side=[comment_id])
 
@@ -74,6 +74,28 @@ class Comment(Base):
 
     def __str__(self):
         return f"评论#{self.comment_id}: {self.comment_content[:20]}... (点赞:{self.comment_likes}, 发送者类型:{self.sender_type})"
+
+
+class LikeRecord(Base):
+    """点赞记录表，用于跟踪人类用户对帖子和评论的点赞状态"""
+    __tablename__ = "like_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    human_user_id = Column(Integer, ForeignKey("human_users.user_id"), nullable=False)
+    target_type = Column(String(20), nullable=False)  # 'post' 或 'comment'
+    target_id = Column(Integer, nullable=False)  # 帖子ID或评论ID
+    created_at = Column(DateTime, default=datetime.now)
+    
+    # 创建唯一约束，确保每个用户对每个目标只能点赞一次
+    __table_args__ = (
+        UniqueConstraint('human_user_id', 'target_type', 'target_id', name='unique_like_record'),
+    )
+
+    def __repr__(self):
+        return f"<LikeRecord(user_id={self.human_user_id}, target={self.target_type}_{self.target_id})>"
+
+    def __str__(self):
+        return f"点赞记录: 用户{self.human_user_id} -> {self.target_type}{self.target_id}"
 
 
 class UserTemplate(Base):
