@@ -3,11 +3,36 @@
 ## TODO
 - 接口
   - 4
-    - 测试接口
+    - 测试接口（没有current user生成不了，逻辑通过；等待测试正式的发布帖子的逻辑验证）
   - 5
   - 6
   - 7
 - 请求速度优化
+
+## BUG
+1. 可能存在： 
+```bash
+2. 2025-08-12 08:48:45,695 [ERROR] backend.main - 生成评论失败: empty range in randrange(1, 1)
+2025-08-12 08:48:45,699 [ERROR] backend.main - 错误详情: Traceback (most recent call last):
+  File "/Users/wangyixiao/Desktop/Files/Projects/influai_backup/backend/main.py", line 279, in generate_comments_for_post
+    stats = post_service.generate_comments_for_existing_post(post_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangyixiao/Desktop/Files/Projects/influai_backup/backend/services/post_service.py", line 317, in generate_comments_for_existing_post
+    expanded_comments = self.expand_lv1_comments_by_attitude(att, comment_count)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/wangyixiao/Desktop/Files/Projects/influai_backup/backend/services/post_service.py", line 227, in expand_lv1_comments_by_attitude
+    short_num = rand_int(num / 3)
+                ^^^^^^^^^^^^^^^^^
+  File "/Users/wangyixiao/Desktop/Files/Projects/influai_backup/backend/utils/global_utils.py", line 26, in rand_int
+    return random.randint(low_bound, high_bound)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/envs/influai/lib/python3.12/random.py", line 336, in randint
+    return self.randrange(a, b+1)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/envs/influai/lib/python3.12/random.py", line 319, in randrange
+    raise ValueError(f"empty range in randrange({start}, {stop})")
+ValueError: empty range in randrange(1, 1)
+```
 
 ## CoT
 - 维护一个AI用户的数据库，包含生成的userid，username，态度，创建时间，是否是粉丝。 

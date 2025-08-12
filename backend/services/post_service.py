@@ -224,9 +224,33 @@ class PostService:
         if num == 0:
             logger.warning(f"态度 {attitude} 无需扩展评论")
             return []
-        short_num = rand_int(num / 3)
-        medium_num = rand_int(num / 3)
-        long_num = num - short_num - medium_num
+        
+        # 确保num至少为1，避免除以3后过小
+        if num < 3:
+            # 如果数量太少，直接分配
+            if num == 1:
+                short_num = 1
+                medium_num = 0
+                long_num = 0
+            elif num == 2:
+                short_num = 1
+                medium_num = 1
+                long_num = 0
+        else:
+            # 正常分配逻辑
+            short_num = max(1, rand_int(num / 3))
+            medium_num = max(1, rand_int(num / 3))
+            long_num = max(0, num - short_num - medium_num)
+            
+            # 确保总数不超过num
+            total = short_num + medium_num + long_num
+            if total > num:
+                # 按比例调整
+                if total > 0:
+                    short_num = max(1, int(short_num * num / total))
+                    medium_num = max(1, int(medium_num * num / total))
+                    long_num = num - short_num - medium_num
+        
         num_list = [short_num, medium_num, long_num]
         comments = []
         logger.debug(f"对于{attitude}，数量列表为{num_list}")

@@ -22,6 +22,14 @@ def rand_int(
 
     low_bound = math.ceil(low)
     high_bound = math.floor(high)
+    
+    # 确保low_bound和high_bound不相等，避免空范围错误
+    if low_bound >= high_bound:
+        if low_bound == 0:
+            return 0
+        else:
+            # 如果范围太小，返回基准值的整数部分
+            return max(1, int(number))
 
     return random.randint(low_bound, high_bound)
 
