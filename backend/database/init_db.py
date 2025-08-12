@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Dict, Any
 
 from backend.database import models
-from backend.database.crud import get_user_template_by_name, get_user_template_by_id
+from backend.database.crud import get_user_template_by_name
 from backend.database.database import engine, Base, get_db_session
 from backend.database.db_utils import init_ai_users
 from backend.utils.logger import get_logger

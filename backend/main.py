@@ -487,9 +487,17 @@ async def get_posts(db: Session = Depends(get_db)):
         posts = crud.get_latest_n_posts(db, 50)  # 获取最新50条帖子
         post_list = []
         
+        # 获取当前用户
+        current_user = user_manager.get_current_user()
+        
         for post in posts:
             # 获取作者信息
             author = crud.get_human_user_by_id(db, post.author_id) if post.author_id else None
+            
+            # 判断当前用户是否点赞了该帖子
+            is_liked = False
+            if current_user:
+                is_liked = post.is_human_user_liked == 1
             
             post_data = {
                 "id": f"post_{post.post_id}",
@@ -503,7 +511,7 @@ async def get_posts(db: Session = Depends(get_db)):
                 "createdAt": post.created_at.isoformat(),
                 "likes": post.like_count,
                 "commentsCount": len(post.comments),
-                "isLiked": False  # 简化处理，实际应该根据当前用户判断
+                "isLiked": is_liked
             }
             post_list.append(post_data)
         
@@ -532,6 +540,7 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
             post_content=content,
             author_id=current_user.user_id,
             like_count=0,
+            is_human_user_liked=0,
             created_at=datetime.now()
         )
         
@@ -553,7 +562,7 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
             "createdAt": created_post.created_at.isoformat(),
             "likes": created_post.like_count,
             "commentsCount": 0,
-            "isLiked": False
+            "isLiked": created_post.is_human_user_liked == 1
         }
         
         # 通过WebSocket广播新帖子
@@ -579,11 +588,11 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
 
 @app.post("/posts/{post_id}/like",
           summary="点赞帖子",
-          description="为指定帖子点赞，增加帖子的点赞数。",
-          response_description="点赞成功返回更新后的点赞数",
+          description="为指定帖子点赞或取消点赞。如果已点赞则取消点赞，如果未点赞则点赞。",
+          response_description="点赞/取消点赞成功返回更新后的点赞数和点赞状态",
           tags=["帖子管理"])
 async def like_post(post_id: str, db: Session = Depends(get_db)):
-    """点赞帖子"""
+    """点赞或取消点赞帖子"""
     try:
         # 从post_id中提取数字ID
         try:
@@ -596,22 +605,29 @@ async def like_post(post_id: str, db: Session = Depends(get_db)):
         if not post:
             raise HTTPException(status_code=404, detail="帖子不存在")
         
-        # 增加点赞数
-        post.like_count += 1
-        db.commit()
+        # 检查当前点赞状态
+        current_liked = post.is_human_user_liked == 1
+        new_liked = not current_liked
+        
+        # 更新点赞状态
+        updated_post = crud.update_post_like_status(db, numeric_id, new_liked)
+        if not updated_post:
+            raise HTTPException(status_code=500, detail="更新点赞状态失败")
         
         # 通过WebSocket广播点赞更新
         await manager.broadcast(json.dumps({
             "type": "post_like_update",
             "data": {
                 "postId": post_id,
-                "likes": post.like_count
+                "likes": updated_post.like_count,
+                "isLiked": new_liked
             }
         }))
         
         return create_response(data={
             "postId": post_id,
-            "likes": post.like_count
+            "likes": updated_post.like_count,
+            "isLiked": new_liked
         })
     except Exception as e:
         logger.error(f"点赞帖子失败: {e}")
@@ -700,7 +716,7 @@ async def get_comments(
                 "timestamp": format_timestamp(comment.created_at),
                 "createdAt": comment.created_at.isoformat(),
                 "likes": comment.comment_likes,
-                "isLiked": False
+                "isLiked": comment.is_human_user_liked == 1
             }
             comment_list.append(comment_data)
         
@@ -758,7 +774,7 @@ async def create_comment(post_id: str, comment_data: CreateCommentRequest, db: S
             "timestamp": format_timestamp(new_comment.created_at),
             "createdAt": new_comment.created_at.isoformat(),
             "likes": new_comment.comment_likes,
-            "isLiked": False
+            "isLiked": new_comment.is_human_user_liked == 1
         }
         
         # 通过WebSocket广播新评论
@@ -778,11 +794,11 @@ async def create_comment(post_id: str, comment_data: CreateCommentRequest, db: S
 
 @app.post("/comments/{comment_id}/like",
           summary="点赞评论",
-          description="为指定评论点赞，增加评论的点赞数。",
-          response_description="点赞成功返回更新后的点赞数",
+          description="为指定评论点赞或取消点赞。如果已点赞则取消点赞，如果未点赞则点赞。",
+          response_description="点赞/取消点赞成功返回更新后的点赞数和点赞状态",
           tags=["评论管理"])
 async def like_comment(comment_id: str, db: Session = Depends(get_db)):
-    """点赞评论"""
+    """点赞或取消点赞评论"""
     try:
         # 从comment_id中提取数字ID
         try:
@@ -795,23 +811,30 @@ async def like_comment(comment_id: str, db: Session = Depends(get_db)):
         if not comment:
             raise HTTPException(status_code=404, detail="评论不存在")
         
-        # 增加点赞数
-        comment.comment_likes += 1
-        db.commit()
+        # 检查当前点赞状态
+        current_liked = comment.is_human_user_liked == 1
+        new_liked = not current_liked
+        
+        # 更新点赞状态
+        updated_comment = crud.update_comment_like_status(db, numeric_id, new_liked)
+        if not updated_comment:
+            raise HTTPException(status_code=500, detail="更新点赞状态失败")
         
         # 通过WebSocket广播点赞更新
         await manager.broadcast(json.dumps({
             "type": "comment_like_update",
             "data": {
                 "commentId": comment_id,
-                "postId": f"post_{comment.post_id}",
-                "likes": comment.comment_likes
+                "postId": f"post_{updated_comment.post_id}",
+                "likes": updated_comment.comment_likes,
+                "isLiked": new_liked
             }
         }))
         
         return create_response(data={
             "commentId": comment_id,
-            "likes": comment.comment_likes
+            "likes": updated_comment.comment_likes,
+            "isLiked": new_liked
         })
     except Exception as e:
         logger.error(f"点赞评论失败: {e}")

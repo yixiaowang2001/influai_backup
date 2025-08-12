@@ -50,6 +50,7 @@ class PostService:
         """
         self.post = Post(
             post_content=content,
+            is_human_user_liked=0  # 新帖子默认未点赞
         )
         self.template_name = template_name
         self.template_id = template_id
@@ -301,7 +302,8 @@ class PostService:
                         follower_count=self.user_template["follower_count"],
                         float_range=0.9,
                         zoom_index=0.01
-                    )
+                    ),
+                    is_human_user_liked=0  # AI生成的评论默认未点赞
                 )
                 comments.append(comment)
         return comments

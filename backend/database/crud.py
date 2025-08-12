@@ -1,5 +1,5 @@
-from typing import List, Optional
 from datetime import datetime
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,7 @@ def create_post(db: Session, post: PostModel) -> models.Post:
         post_content=post.post_content,
         author_id=post.author_id,
         like_count=post.like_count or 0,
+        is_human_user_liked=getattr(post, 'is_human_user_liked', 0),  # 获取点赞状态，默认为0
         created_at=post.created_at
     )
     db.add(db_post)
@@ -131,6 +132,7 @@ def create_comment(db: Session, comment: CommentModel) -> models.Comment:
         comment_user_type=comment.comment_user_type,
         comment_level=comment.comment_level,
         comment_likes=comment.comment_likes,
+        is_human_user_liked=getattr(comment, 'is_human_user_liked', 0),  # 获取点赞状态，默认为0
         master_comment_id=comment.master_comment_id,
         created_at=comment.created_at,
         send_at=comment.send_at,
@@ -346,6 +348,7 @@ def create_comment_with_sender(db: Session, comment_content: str, post_id: int, 
         comment_user_type=comment_user_type,
         comment_level=comment_level,
         comment_likes=0,
+        is_human_user_liked=0,  # 新评论默认未点赞
         master_comment_id=None,
         created_at=datetime.now(),
         send_at=datetime.now(),
@@ -358,3 +361,51 @@ def create_comment_with_sender(db: Session, comment_content: str, post_id: int, 
     db.refresh(db_comment)
     logger.info(f"成功创建评论，ID: {db_comment.comment_id}, 发送者类型: {sender_type}")
     return db_comment
+
+
+def update_post_like_status(db: Session, post_id: int, is_liked: bool) -> Optional[models.Post]:
+    """
+    更新帖子的点赞状态
+    
+    Args:
+        db: 数据库会话
+        post_id: 帖子ID
+        is_liked: 是否已点赞
+        
+    Returns:
+        Optional[models.Post]: 更新后的帖子对象，如果不存在则返回None
+    """
+    post = db.query(models.Post).filter(models.Post.post_id == post_id).first()
+    if post:
+        post.is_human_user_liked = 1 if is_liked else 0
+        if is_liked:
+            post.like_count += 1
+        else:
+            post.like_count = max(0, post.like_count - 1)
+        db.commit()
+        db.refresh(post)
+    return post
+
+
+def update_comment_like_status(db: Session, comment_id: int, is_liked: bool) -> Optional[models.Comment]:
+    """
+    更新评论的点赞状态
+    
+    Args:
+        db: 数据库会话
+        comment_id: 评论ID
+        is_liked: 是否已点赞
+        
+    Returns:
+        Optional[models.Comment]: 更新后的评论对象，如果不存在则返回None
+    """
+    comment = db.query(models.Comment).filter(models.Comment.comment_id == comment_id).first()
+    if comment:
+        comment.is_human_user_liked = 1 if is_liked else 0
+        if is_liked:
+            comment.comment_likes += 1
+        else:
+            comment.comment_likes = max(0, comment.comment_likes - 1)
+        db.commit()
+        db.refresh(comment)
+    return comment

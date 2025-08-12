@@ -14,6 +14,7 @@ class Comment:
     comment_level: int
     post_id: Optional[int] = None
     comment_likes: int = 0
+    is_human_user_liked: int = 0
     comment_id: Optional[str] = None
     comment_user_id: Optional[str] = None
     master_comment_id: Optional[str] = None
