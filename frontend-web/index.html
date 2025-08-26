@@ -121,6 +121,18 @@
 </head>
 <body class="min-h-screen">
   <div class="max-w-2xl mx-auto bg-white">
+    <!-- 错误提示 -->
+    <div id="errorMessage" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+      <span id="errorText"></span>
+      <button onclick="hideErrorMessage()" class="ml-2 text-white hover:text-gray-200">×</button>
+    </div>
+    
+    <!-- 成功提示 -->
+    <div id="successMessage" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+      <span id="successText"></span>
+      <button onclick="hideSuccessMessage()" class="ml-2 text-white hover:text-gray-200">×</button>
+    </div>
+    
     <!-- 时间线帖子列表 -->
     <div id="postsContainer">
       <!-- 空状态：不显示任何内容 -->

@@ -571,12 +571,9 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
             "data": post_response
         }))
         
-        # 同步生成评论（便于调试）
-        try:
-            await generate_comments_for_post(created_post.post_id, current_user.user_id, db)
-        except Exception as e:
-            logger.error(f"生成评论时出错: {e}")
-            # 不阻塞帖子发布，继续返回响应
+        # 异步生成评论（不阻塞响应）
+        import asyncio
+        asyncio.create_task(generate_comments_for_post(created_post.post_id, current_user.user_id, db))
         
         return create_response(data=post_response)
     except HTTPException:

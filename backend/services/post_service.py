@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union, Optional
 
 from tqdm import tqdm
 
@@ -103,7 +103,7 @@ class PostService:
         """
         return distribute_by_ratio(total, self.user_template["commenter_distribution"])
 
-    def assign_ai_user_to_comment(self, comment: Comment) -> Any | None:
+    def assign_ai_user_to_comment(self, comment: Comment) -> Union[Any, None]:
         """
         为评论分配AI用户
         
