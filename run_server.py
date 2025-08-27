@@ -4,7 +4,6 @@ InfluAI Backend Server 启动脚本
 """
 
 import uvicorn
-from backend.main import app
 
 if __name__ == "__main__":
     print("正在启动 InfluAI Backend Server...")

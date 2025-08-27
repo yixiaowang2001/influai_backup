@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from typing import Optional
 
 # 尝试加载.env文件
 try:
