@@ -272,17 +272,7 @@ def get_human_user_by_id(db: Session, user_id: int) -> Optional[models.HumanUser
     return db.query(models.HumanUser).filter(models.HumanUser.user_id == user_id).first()
 
 
-def get_first_human_user(db: Session) -> Optional[models.HumanUser]:
-    """
-    获取第一个人类用户（用于默认用户）
-    
-    Args:
-        db: 数据库会话
-        
-    Returns:
-        Optional[models.HumanUser]: 第一个人类用户对象，如果不存在则返回None
-    """
-    return db.query(models.HumanUser).first()
+
 
 
 def get_all_human_users(db: Session) -> List[models.HumanUser]:
@@ -409,3 +399,54 @@ def update_comment_like_status(db: Session, comment_id: int, is_liked: bool) -> 
         db.commit()
         db.refresh(comment)
     return comment
+
+
+def get_human_user_by_username(db: Session, username: str) -> Optional[models.HumanUser]:
+    """
+    根据用户名获取人类用户
+    
+    Args:
+        db: 数据库会话
+        username: 用户名
+        
+    Returns:
+        Optional[models.HumanUser]: 人类用户对象，如果不存在则返回None
+    """
+    return db.query(models.HumanUser).filter(models.HumanUser.username == username).first()
+
+
+def create_human_user(db: Session, username: str, user_template_id: int, avatar_path: str = "") -> models.HumanUser:
+    """
+    创建人类用户
+    
+    Args:
+        db: 数据库会话
+        username: 用户名
+        user_template_id: 用户模板ID
+        avatar_path: 头像路径
+        
+    Returns:
+        models.HumanUser: 创建的人类用户对象
+    """
+    logger.debug(f"开始创建人类用户，用户名: {username}, 模板ID: {user_template_id}")
+    
+    # 获取用户模板以获取follower_count
+    template = get_user_template_by_id(db, user_template_id)
+    if not template:
+        raise ValueError(f"未找到模板ID: {user_template_id}")
+    
+    # 创建人类用户
+    db_human_user = models.HumanUser(
+        username=username,
+        user_template_id=user_template_id,
+        avatar_path=avatar_path,
+        follower_count=template.follower_count,  # 从模板获取follower_count
+        created_at=datetime.now()  # 自动生成created_at
+    )
+    
+    db.add(db_human_user)
+    db.commit()
+    db.refresh(db_human_user)
+    
+    logger.info(f"成功创建人类用户，ID: {db_human_user.user_id}，用户名: {db_human_user.username}")
+    return db_human_user

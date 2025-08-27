@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 import json
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
+from contextlib import asynccontextmanager
 
 from backend.database.database import get_db
 from backend.database import crud, models
@@ -66,65 +67,101 @@ class CreateCommentRequest(BaseModel):
         }
     }
 
+class CreateHumanUserRequest(BaseModel):
+    """创建人类用户的请求模型"""
+    username: str = Field(
+        ..., 
+        description="人类用户名，不能为空", 
+        example="测试用户",
+        min_length=1,
+        max_length=50
+    )
+    user_template_id: int = Field(
+        ..., 
+        description="用户模板ID，必须是一个有效的模板ID", 
+        example=1,
+        gt=0
+    )
+    avatar_path: str = Field(
+        default="", 
+        description="用户头像路径，可以为空", 
+        example="https://example.com/avatar.jpg"
+    )
+    
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "username": "测试用户",
+                "user_template_id": 1,
+                "avatar_path": "https://example.com/avatar.jpg"
+            }
+        }
+    }
+
+async def create_database_if_not_exists():
+    """如果数据库不存在，则创建数据库"""
+    try:
+        from sqlalchemy import create_engine, text
+        from sqlalchemy.exc import OperationalError
+        
+        # 连接到MySQL服务器（不指定数据库）
+        mysql_url = "mysql+pymysql://root:influai@localhost:3306"
+        engine = create_engine(mysql_url)
+        
+        with engine.connect() as conn:
+            # 尝试创建数据库
+            conn.execute(text("CREATE DATABASE IF NOT EXISTS influai CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
+            conn.commit()
+            logger.info("MySQL数据库 'influai' 创建成功或已存在")
+            
+    except Exception as e:
+        logger.error(f"创建MySQL数据库失败: {e}")
+        raise
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    # 启动时
+    try:
+        logger.info("InfluAI Backend API 启动中...")
+        
+        # 设置环境变量，确保MySQL连接正常
+        import os
+        os.environ["DB_TYPE"] = "mysql"
+        os.environ["MYSQL_HOST"] = "localhost"
+        os.environ["MYSQL_PORT"] = "3306"
+        os.environ["MYSQL_USER"] = "root"
+        os.environ["MYSQL_PASSWORD"] = "influai"
+        os.environ["MYSQL_DATABASE"] = "influai"
+        os.environ["MYSQL_CHARSET"] = "utf8mb4"
+        
+        # 先尝试创建数据库（如果不存在）
+        await create_database_if_not_exists()
+        
+        # 初始化数据库（如果还没有初始化）
+        from backend.database.init_db import init_database
+        if init_database():
+            logger.info("数据库初始化完成")
+        else:
+            logger.warning("数据库初始化失败，但应用继续启动")
+        
+        logger.info("InfluAI Backend API 启动完成")
+        
+    except Exception as e:
+        logger.error(f"应用启动失败: {e}")
+        raise
+    
+    yield
+    
+    # 关闭时
+    logger.info("InfluAI Backend API 正在关闭...")
+
 # 创建FastAPI应用
 app = FastAPI(
     title="InfluAI Backend API",
-    description="""
-    InfluAI社交媒体模拟平台后端API
-    
-    ## 功能特性
-    
-    * **用户管理** - 支持人类用户和AI用户管理
-    * **帖子系统** - 发布、点赞、评论功能
-    * **实时更新** - WebSocket实时推送更新
-    * **AI评论** - 基于用户模板自动生成AI评论
-    
-    ## 快速开始
-    
-    1. 设置当前用户: `POST /user/set-current`
-    2. 发布帖子: `POST /posts`
-    3. 查看帖子: `GET /posts`
-    4. 点赞评论: `POST /posts/{post_id}/like`
-    
-    ## WebSocket
-    
-    连接 `ws://localhost:8000/ws/updates` 获取实时更新
-    """,
+    description="InfluAI 后端API服务",
     version="1.0.0",
-    contact={
-        "name": "InfluAI Team",
-        "email": "support@influai.com",
-    },
-    license_info={
-        "name": "MIT",
-        "url": "https://opensource.org/licenses/MIT",
-    },
-    openapi_tags=[
-        {
-            "name": "用户管理",
-            "description": "人类用户相关接口，包括用户信息获取、角色切换等",
-        },
-        {
-            "name": "用户模板",
-            "description": "用户模板相关接口，获取可用的用户模板信息",
-        },
-        {
-            "name": "帖子管理",
-            "description": "帖子相关接口，包括发布、获取、点赞等",
-        },
-        {
-            "name": "评论管理",
-            "description": "评论相关接口，包括发布、获取、点赞等",
-        },
-        {
-            "name": "WebSocket",
-            "description": "WebSocket实时更新接口",
-        },
-        {
-            "name": "系统",
-            "description": "系统健康检查等接口",
-        },
-    ],
+    lifespan=lifespan
 )
 
 # 全局用户管理
@@ -179,26 +216,6 @@ class ConnectionManager:
                 self.active_connections.remove(connection)
 
 manager = ConnectionManager()
-
-# 启动事件
-@app.on_event("startup")
-async def startup_event():
-    """应用启动时的初始化操作"""
-    try:
-        logger.info("InfluAI Backend API 启动中...")
-        
-        # 初始化数据库（如果还没有初始化）
-        from backend.database.init_db import init_database
-        if init_database():
-            logger.info("数据库初始化完成")
-        else:
-            logger.warning("数据库初始化失败，但应用继续启动")
-        
-        logger.info("InfluAI Backend API 启动完成")
-        
-    except Exception as e:
-        logger.error(f"应用启动失败: {e}")
-        raise
 
 # 通用响应格式
 def create_response(code: int = 200, message: str = "success", data: Any = None):
@@ -356,6 +373,61 @@ async def get_human_user_by_id(human_user_id: int, db: Session = Depends(get_db)
     except Exception as e:
         logger.error(f"获取用户信息失败: {e}")
         raise HTTPException(status_code=500, detail="获取用户信息失败")
+
+
+@app.post("/user/create",
+          summary="创建人类用户",
+          description="创建新的人类用户。用户名不能为空，user_template_id必须是有效的模板ID，follower_count会自动从模板获取，created_at会自动生成。",
+          response_description="创建成功返回用户详细信息",
+          tags=["用户管理"])
+async def create_human_user(user_data: CreateHumanUserRequest, db: Session = Depends(get_db)):
+    """创建人类用户"""
+    try:
+        username = user_data.username
+        user_template_id = user_data.user_template_id
+        avatar_path = user_data.avatar_path
+        
+        # 检查用户名是否已存在
+        existing_user = crud.get_human_user_by_username(db, username)
+        if existing_user:
+            raise HTTPException(status_code=400, detail=f"用户名 '{username}' 已存在")
+        
+        # 检查用户模板是否存在
+        template = crud.get_user_template_by_id(db, user_template_id)
+        if not template:
+            raise HTTPException(status_code=404, detail=f"未找到模板ID: {user_template_id}")
+        
+        # 创建人类用户
+        created_user = crud.create_human_user(
+            db=db,
+            username=username,
+            user_template_id=user_template_id,
+            avatar_path=avatar_path
+        )
+        
+        # 返回创建的用户数据
+        user_response = {
+            "humanUserId": created_user.user_id,
+            "humanUsername": created_user.username,
+            "avatarPath": created_user.avatar_path,
+            "followerCount": created_user.follower_count,
+            "userTemplateId": created_user.user_template_id,
+            "createdAt": created_user.created_at.isoformat(),
+            "message": "人类用户创建成功"
+        }
+        
+        logger.info(f"成功创建人类用户: {username} (ID: {created_user.user_id})")
+        return create_response(data=user_response)
+        
+    except HTTPException:
+        # 重新抛出HTTPException，避免被通用异常处理捕获
+        raise
+    except ValueError as e:
+        logger.error(f"创建人类用户失败: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"创建人类用户失败: {e}")
+        raise HTTPException(status_code=500, detail="创建人类用户失败")
 
 
 @app.get("/user/current",

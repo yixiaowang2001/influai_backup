@@ -3,9 +3,18 @@ import os
 from datetime import datetime
 from typing import Dict, Any
 
+# 直接设置环境变量，确保MySQL连接正常
+os.environ["DB_TYPE"] = "mysql"
+os.environ["MYSQL_HOST"] = "localhost"
+os.environ["MYSQL_PORT"] = "3306"
+os.environ["MYSQL_USER"] = "root"
+os.environ["MYSQL_PASSWORD"] = "influai"
+os.environ["MYSQL_DATABASE"] = "influai"
+os.environ["MYSQL_CHARSET"] = "utf8mb4"
+
 from backend.database import models
 from backend.database.crud import get_user_template_by_name
-from backend.database.database import engine, Base, get_db_session
+from backend.database.database import get_engine, Base, get_db_session
 from backend.database.db_utils import init_ai_users
 from backend.utils.logger import get_logger
 
@@ -91,7 +100,7 @@ def init_user_templates() -> bool:
 
 def create_tables() -> None:
     """创建数据库表"""
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=get_engine())
     logger.info('数据库表已创建')
 
 
@@ -107,23 +116,8 @@ def insert_init_data(template_name: str = None) -> None:
         if not init_user_templates():
             raise Exception("用户模板初始化失败")
 
-        # 插入多个人类用户，每个模板创建一个
-        if not db.query(models.HumanUser).first():
-            # 获取所有用户模板
-            user_templates = db.query(models.UserTemplate).all()
-            
-            for template in user_templates:
-                human_user = models.HumanUser(
-                    username=f"{template.template_name}用户",
-                    user_template_id=template.template_id,
-                    avatar_path=template.default_avatar_path,
-                    follower_count=template.follower_count,
-                    created_at=datetime.now()
-                )
-                db.add(human_user)
-            
-            db.commit()
-            logger.info(f"成功插入 {len(user_templates)} 个人类用户数据。")
+        # 不再自动创建默认人类用户
+        logger.info("跳过默认人类用户创建，用户将通过API接口手动创建")
 
         # 如果提供了模板名称，则根据该模板初始化AI用户数据
         if template_name:
