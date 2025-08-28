@@ -23,6 +23,7 @@ os.environ["MYSQL_CHARSET"] = "utf8mb4"
 
 from backend.database.database import get_db_session
 from backend.database import models
+from sqlalchemy import text
 
 def quick_clear():
     """快速清空所有数据"""
@@ -80,11 +81,29 @@ def quick_clear():
             count = db.query(models.UserTemplate).delete()
             deleted += count
             print(f"  - 删除了 {count} 个用户模板")
-        
+
+        # 重置自增ID序列
+        print("🔄 重置自增ID序列...")
+
+        # 重置各个表的自增ID
+        reset_queries = [
+            "ALTER TABLE comments AUTO_INCREMENT = 1",
+            "ALTER TABLE posts AUTO_INCREMENT = 1",
+            "ALTER TABLE human_users AUTO_INCREMENT = 1",
+            "ALTER TABLE user_templates AUTO_INCREMENT = 1"
+        ]
+
+        for query in reset_queries:
+            try:
+                db.execute(text(query))
+                print(f"  - 重置自增ID: {query}")
+            except Exception as e:
+                print(f"  - 警告: 重置自增ID失败 ({query}): {e}")
+
         # 提交事务
         db.commit()
-        
-        print(f"🎉 清理完成！共删除 {deleted} 条记录")
+
+        print(f"🎉 清理完成！共删除 {deleted} 条记录，自增ID已重置")
         
     except Exception as e:
         print(f"❌ 清理失败: {e}")

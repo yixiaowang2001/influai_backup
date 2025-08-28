@@ -9,6 +9,7 @@ from backend.ai_module import (
     predict_comment_likes
 )
 from backend.configs import RETRY_COUNT, MAX_COMMENTS_PER_REQUEST
+from backend.database import models as db_models
 from backend.database.crud import (
     create_post,
     create_comment,
@@ -21,7 +22,6 @@ from backend.models import (
     Post,
     Attitude
 )
-from backend.database import models as db_models
 from backend.utils import get_logger, rand_int, format_history_posts, distribute_by_ratio
 
 logger = get_logger(__name__)

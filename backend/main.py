@@ -1,5 +1,5 @@
-import json
 import asyncio
+import json
 import random
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -713,7 +713,7 @@ async def get_posts(db: Session = Depends(get_db)):
 
 @app.post("/posts",
           summary="发布帖子",
-          description="发布新帖子。需要先设置当前用户，帖子内容不能超过140字符。发布后会自动根据用户模板生成AI评论。",
+          description="发布新帖子。需要先设置当前用户，帖子内容不能超过140字符。发布后立即返回200状态，后台异步生成AI评论并通过WebSocket实时推送。",
           response_description="发布成功返回帖子详细信息",
           tags=["帖子管理"])
 async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db)):
@@ -1046,15 +1046,179 @@ async def like_comment(comment_id: str, db: Session = Depends(get_db)):
 # WebSocket接口
 @app.websocket("/ws/updates")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket连接端点"""
+    """
+    WebSocket实时推送连接端点
+    
+    建立连接后，客户端将自动接收以下类型的实时推送：
+    
+    **推送消息类型：**
+    
+    1. **new_post** - 新帖子发布
+       ```json
+       {
+         "type": "new_post",
+         "data": {
+           "id": "post_123",
+           "content": "帖子内容",
+           "author": {...},
+           "timestamp": "刚刚",
+           "createdAt": "2025-08-27T21:51:19",
+           "likes": 0,
+           "commentsCount": 0,
+           "isLiked": false
+         }
+       }
+       ```
+    
+    2. **new_comment_push** - AI评论推送（每3-5秒一条）
+       ```json
+       {
+         "type": "new_comment_push",
+         "data": {
+           "postId": "post_123",
+           "comment": {
+             "id": "comment_456",
+             "content": "评论内容",
+             "author": {...},
+             "timestamp": "刚刚",
+             "createdAt": "2025-08-27T21:51:20",
+             "likes": 0,
+             "isLiked": false
+           }
+         }
+       }
+       ```
+    
+    3. **comment_push_complete** - 评论推送完成通知
+       ```json
+       {
+         "type": "comment_push_complete",
+         "data": {
+           "postId": "post_123",
+           "message": "该帖子的所有评论已推送完毕"
+         }
+       }
+       ```
+    
+    4. **new_comment** - 人类用户发布评论
+       ```json
+       {
+         "type": "new_comment",
+         "data": {
+           "postId": "post_123",
+           "comment": {...},
+           "commentsCount": 5
+         }
+       }
+       ```
+    
+    5. **post_like_update** - 帖子点赞状态更新
+       ```json
+       {
+         "type": "post_like_update",
+         "data": {
+           "postId": "post_123",
+           "likes": 15,
+           "isLiked": true
+         }
+       }
+       ```
+    
+    6. **comment_like_update** - 评论点赞状态更新
+       ```json
+       {
+         "type": "comment_like_update",
+         "data": {
+           "commentId": "comment_456",
+           "postId": "post_123",
+           "likes": 8,
+           "isLiked": true
+         }
+       }
+       ```
+    
+    **连接方式：**
+    ```javascript
+    const ws = new WebSocket('ws://localhost:8000/ws/updates');
+    
+    ws.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        console.log('收到推送:', data);
+        
+        switch(data.type) {
+            case 'new_comment_push':
+                // 处理AI评论推送
+                displayComment(data.data.comment);
+                break;
+            case 'comment_push_complete':
+                // 处理推送完成通知
+                console.log('评论推送完成');
+                break;
+            // ... 其他类型处理
+        }
+    };
+    ```
+    
+    **注意事项：**
+    - 连接建立后会自动接收推送，无需发送任何消息
+    - 推送频率：AI评论每3-5秒推送一条
+    - 连接断开后需要重新连接才能继续接收推送
+    - 支持多个客户端同时连接
+    """
     await manager.connect(websocket)
     try:
         while True:
-            # 保持连接活跃
+            # 保持连接活跃，等待推送消息
             data = await websocket.receive_text()
-            # 这里可以处理客户端发送的消息
+            # 这里可以处理客户端发送的消息（如心跳检测）
+            # 目前主要用于保持连接活跃
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+# 系统状态接口
+@app.get("/system/status",
+         summary="系统状态",
+         description="获取系统运行状态，包括WebSocket连接数、推送任务状态等。",
+         response_description="返回系统状态信息",
+         tags=["系统"])
+async def get_system_status():
+    """获取系统状态信息"""
+    try:
+        # 获取WebSocket连接数
+        active_connections = len(manager.active_connections)
+
+        # 获取推送任务状态
+        push_tasks_count = len(comment_push_manager.push_tasks)
+
+        # 获取推送任务详情
+        push_tasks_info = []
+        for post_id, task in comment_push_manager.push_tasks.items():
+            task_info = {
+                "postId": post_id,
+                "status": "running" if not task.done() else "completed",
+                "exception": str(task.exception()) if task.exception() else None
+            }
+            push_tasks_info.append(task_info)
+
+        return create_response(data={
+            "websocket": {
+                "activeConnections": active_connections,
+                "endpoint": "/ws/updates"
+            },
+            "pushTasks": {
+                "count": push_tasks_count,
+                "tasks": push_tasks_info
+            },
+            "server": {
+                "status": "running",
+                "timestamp": datetime.now().isoformat()
+            }
+        })
+    except Exception as e:
+        logger.error(f"获取系统状态失败: {e}")
+        raise HTTPException(status_code=500, detail="获取系统状态失败")
+
 
 # 健康检查接口
 @app.get("/health",
