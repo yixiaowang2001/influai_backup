@@ -1,4 +1,6 @@
 import json
+import asyncio
+import random
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Any
@@ -217,6 +219,125 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# 评论推送任务管理器
+class CommentPushManager:
+    def __init__(self):
+        self.push_tasks = {}  # 存储每个帖子的推送任务
+    
+    async def start_comment_push_task(self, post_id: int, db: Session):
+        """为指定帖子启动评论推送任务"""
+        if post_id in self.push_tasks:
+            logger.warning(f"帖子 {post_id} 的推送任务已存在")
+            return
+        
+        # 创建推送任务
+        task = asyncio.create_task(self._push_comments_for_post(post_id, db))
+        self.push_tasks[post_id] = task
+        
+        logger.info(f"为帖子 {post_id} 启动评论推送任务")
+    
+    async def _push_comments_for_post(self, post_id: int, db: Session):
+        """为指定帖子推送评论的核心逻辑"""
+        try:
+            logger.info(f"开始为帖子 {post_id} 推送评论...")
+            
+            # 等待一段时间让评论生成完成
+            await asyncio.sleep(2)
+            
+            while True:
+                # 获取该帖子的所有评论
+                comments = crud.get_comments_by_post(db, post_id)
+                
+                # 检查是否还有未推送的评论
+                unprocessed_comments = [c for c in comments if not c.send_at]
+                
+                if not unprocessed_comments:
+                    logger.info(f"帖子 {post_id} 的所有评论已推送完毕")
+                    break
+                
+                # 随机选择一条未处理的评论进行推送
+                comment_to_push = random.choice(unprocessed_comments)
+                
+                # 获取评论者信息
+                author_info = {}
+                if comment_to_push.sender_type == "ai_user":
+                    ai_user = crud.get_ai_user(db, comment_to_push.sender_id)
+                    if ai_user:
+                        author_info = {
+                            "id": ai_user.user_id,
+                            "username": ai_user.username,
+                            "userId": f"@{ai_user.username.lower()}"
+                        }
+                elif comment_to_push.sender_type == "human_user":
+                    human_user = crud.get_human_user_by_id(db, int(comment_to_push.sender_id))
+                    if human_user:
+                        author_info = {
+                            "id": f"human_{human_user.user_id}",
+                            "username": human_user.username,
+                            "userId": f"@{human_user.username.lower()}"
+                        }
+                
+                # 构建评论数据
+                comment_data = {
+                    "id": f"comment_{comment_to_push.comment_id}",
+                    "content": comment_to_push.comment_content,
+                    "author": author_info,
+                    "timestamp": format_timestamp(comment_to_push.created_at),
+                    "createdAt": comment_to_push.created_at.isoformat(),
+                    "likes": comment_to_push.comment_likes,
+                    "isLiked": comment_to_push.is_human_user_liked == 1
+                }
+                
+                # 推送评论到前端
+                push_message = {
+                    "type": "new_comment_push",
+                    "data": {
+                        "postId": f"post_{post_id}",
+                        "comment": comment_data
+                    }
+                }
+                
+                await manager.broadcast(json.dumps(push_message))
+                
+                # 更新评论的发送时间
+                comment_to_push.send_at = datetime.now()
+                db.commit()
+                
+                # 在终端打印推送信息
+                print(f"🚀 推送评论到前端 - 帖子ID: {post_id}, 评论ID: {comment_to_push.comment_id}")
+                print(f"   评论内容: {comment_to_push.comment_content[:50]}...")
+                print(f"   评论者: {author_info.get('username', '未知')}")
+                print(f"   推送时间: {datetime.now().strftime('%H:%M:%S')}")
+                print("-" * 80)
+                
+                # 随机等待3-5秒
+                wait_time = random.uniform(3, 5)
+                await asyncio.sleep(wait_time)
+            
+            # 推送完成后，发送完成通知
+            completion_message = {
+                "type": "comment_push_complete",
+                "data": {
+                    "postId": f"post_{post_id}",
+                    "message": "该帖子的所有评论已推送完毕"
+                }
+            }
+            await manager.broadcast(json.dumps(completion_message))
+            
+            print(f"✅ 帖子 {post_id} 的评论推送任务完成")
+            print("=" * 80)
+            
+        except Exception as e:
+            logger.error(f"推送评论失败: {e}")
+            print(f"❌ 帖子 {post_id} 的评论推送失败: {e}")
+        finally:
+            # 清理任务
+            if post_id in self.push_tasks:
+                del self.push_tasks[post_id]
+
+# 创建评论推送管理器实例
+comment_push_manager = CommentPushManager()
+
 # 通用响应格式
 def create_response(code: int = 200, message: str = "success", data: Any = None):
     return {
@@ -300,19 +421,17 @@ async def generate_comments_for_post(post_id: int, human_user_id: int, db: Sessi
         db.commit()
         
         logger.info(f"帖子 {post_id} 的评论生成完成，共 {len(post_service.comments)} 条")
+        print(f"📝 帖子 {post_id} 的评论生成完成，共 {len(post_service.comments)} 条")
+        print(f"   点赞数预测: {stats['pred_like_count']}")
+        print(f"   评论数预测: {stats['pred_comment_count']}")
+        print(f"   新粉丝数预测: {stats['new_follower_count']}")
+        print("-" * 80)
         
-        # 通过WebSocket广播评论数更新
-        await manager.broadcast(json.dumps({
-            "type": "post_comments_update",
-            "data": {
-                "postId": f"post_{post_id}",
-                "commentsCount": len(post_service.comments),
-                "likes": post.like_count
-            }
-        }))
+        # 不再通过WebSocket广播评论数更新，由推送任务处理
         
     except Exception as e:
         logger.error(f"生成评论失败: {e}")
+        print(f"❌ 帖子 {post_id} 的评论生成失败: {e}")
         import traceback
         logger.error(f"错误详情: {traceback.format_exc()}")
 
@@ -645,7 +764,22 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
         
         # 异步生成评论（不阻塞响应）
         import asyncio
-        asyncio.create_task(generate_comments_for_post(created_post.post_id, current_user.user_id, db))
+        
+        # 创建后台任务生成评论
+        comment_generation_task = asyncio.create_task(generate_comments_for_post(created_post.post_id, current_user.user_id, db))
+        
+        # 创建后台任务推送评论
+        comment_push_task = asyncio.create_task(comment_push_manager.start_comment_push_task(created_post.post_id, db))
+        
+        # 在终端打印任务启动信息
+        print(f"🚀 帖子发布成功！ID: {created_post.post_id}")
+        print(f"   内容: {created_post.post_content[:50]}...")
+        print(f"   作者: {current_user.username}")
+        print(f"   发布时间: {datetime.now().strftime('%H:%M:%S')}")
+        print(f"   后台任务已启动:")
+        print(f"     - 评论生成任务")
+        print(f"     - 评论推送任务")
+        print("=" * 80)
         
         return create_response(data=post_response)
     except HTTPException:

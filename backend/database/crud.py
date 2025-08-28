@@ -115,15 +115,19 @@ def create_comment(db: Session, comment: CommentModel) -> models.Comment:
     Returns:
         models.Comment: 创建的评论对象
     """
-    logger.debug(f"开始创建评论，内容长度: {len(comment.comment_content)}，态度: {comment.comment_attitude}")
+    logger.debug(f"开始创建评论，内容长度: {len(comment.comment_content)}")
     
     # 确定sender_type和sender_id
-    if comment.comment_user_id:
-        # 如果是AI用户评论
+    if hasattr(comment, 'sender_type') and comment.sender_type:
+        # 如果评论对象已经有sender_type，直接使用
+        sender_type = comment.sender_type
+        sender_id = comment.sender_id
+    elif comment.comment_user_id:
+        # 如果是AI用户评论（兼容旧版本）
         sender_type = "ai_user"
         sender_id = comment.comment_user_id
     else:
-        # 如果是人类用户评论（这种情况不应该发生，因为AI评论必须有comment_user_id）
+        # 如果是人类用户评论（这种情况不应该发生，因为AI评论必须有sender_id）
         sender_type = "human_user"
         sender_id = str(comment.post_id)  # 临时使用post_id，实际应该从其他地方获取
     
@@ -199,17 +203,22 @@ def get_available_ai_users_by_attitude(db: Session, attitude_type, exclude_user_
     
     Args:
         db: 数据库会话
-        attitude_type: 态度类型枚举
+        attitude_type: 态度类型枚举，如果为None则获取所有AI用户
         exclude_user_ids: 要排除的用户ID列表
         
     Returns:
         List[models.AIUser]: 可用的AI用户列表
     """
-    lower_bound, upper_bound = attitude_type.value
-    query = db.query(models.AIUser).filter(
-        models.AIUser.attitude_value >= lower_bound,
-        models.AIUser.attitude_value < upper_bound
-    )
+    if attitude_type is None:
+        # 如果态度类型为None，获取所有AI用户
+        query = db.query(models.AIUser)
+    else:
+        # 按态度类型过滤
+        lower_bound, upper_bound = attitude_type.value
+        query = db.query(models.AIUser).filter(
+            models.AIUser.attitude_value >= lower_bound,
+            models.AIUser.attitude_value < upper_bound
+        )
     
     if exclude_user_ids:
         query = query.filter(~models.AIUser.user_id.in_(exclude_user_ids))
