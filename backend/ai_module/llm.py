@@ -5,6 +5,7 @@ from openai import OpenAI
 
 from backend.configs import API_KEY
 from backend.utils import get_logger
+from .llm_config import LLMConfig
 
 logger = get_logger(__name__)
 client = OpenAI(
@@ -16,11 +17,12 @@ client = OpenAI(
 def chat(
         system_prompt: str,
         user_prompt: str,
-        model_name: str = "qwen-turbo",
-        temperature: float = 0.5,
-        max_tokens: int = 512,
-        max_retries: int = 3,
-        retry_delay: float = 1.0
+        model_name: str = None,
+        temperature: float = None,
+        max_tokens: int = None,
+        max_retries: int = None,
+        retry_delay: float = None,
+        config_type: str = "default"
 ) -> str:
     """
     与AI模型进行对话
@@ -28,15 +30,26 @@ def chat(
     Args:
         system_prompt: 系统提示词
         user_prompt: 用户提示词
-        model_name: 模型名称
-        temperature: 温度参数
-        max_tokens: 最大token数
-        max_retries: 最大重试次数
-        retry_delay: 重试延迟时间
+        model_name: 模型名称，如果为None则使用配置中的默认值
+        temperature: 温度参数，如果为None则使用配置中的默认值
+        max_tokens: 最大token数，如果为None则使用配置中的默认值
+        max_retries: 最大重试次数，如果为None则使用配置中的默认值
+        retry_delay: 重试延迟时间，如果为None则使用配置中的默认值
+        config_type: 配置类型，用于获取默认参数
         
     Returns:
         str: AI回复内容
-    """
+"""
+    # 获取配置
+    config = LLMConfig.get_config(config_type)
+    
+    # 使用传入参数或配置中的默认值
+    model_name = model_name or config["model_name"]
+    temperature = temperature if temperature is not None else config["temperature"]
+    max_tokens = max_tokens or config["max_tokens"]
+    max_retries = max_retries if max_retries is not None else config["max_retries"]
+    retry_delay = retry_delay if retry_delay is not None else config["retry_delay"]
+    
     last_error = None
     
     for attempt in range(max_retries + 1):

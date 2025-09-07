@@ -1,7 +1,7 @@
 # influai_backup
 
 ## TODO
-- 推送
+- clear_db要清理所有数据库，包括重置increment id
 - 上云
 - 推送（生成逻辑异步）
 - L2评论

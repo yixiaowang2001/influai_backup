@@ -47,9 +47,7 @@ def predict_post_stats(
         response = chat(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            model_name="qwen-turbo",
-            temperature=0.1,
-            max_tokens=256
+            config_type="post_stats"
         )
         
         if not response:
