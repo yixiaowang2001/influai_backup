@@ -88,20 +88,41 @@ def quick_clear():
         # 重置各个表的自增ID
         reset_queries = [
             "ALTER TABLE comments AUTO_INCREMENT = 1",
-            "ALTER TABLE posts AUTO_INCREMENT = 1",
+            "ALTER TABLE posts AUTO_INCREMENT = 1", 
             "ALTER TABLE human_users AUTO_INCREMENT = 1",
             "ALTER TABLE user_templates AUTO_INCREMENT = 1"
         ]
 
+        reset_success_count = 0
         for query in reset_queries:
             try:
                 db.execute(text(query))
-                print(f"  - 重置自增ID: {query}")
+                print(f"  ✅ 重置自增ID: {query}")
+                reset_success_count += 1
             except Exception as e:
-                print(f"  - 警告: 重置自增ID失败 ({query}): {e}")
+                print(f"  ❌ 警告: 重置自增ID失败 ({query}): {e}")
+        
+        print(f"  📊 成功重置 {reset_success_count}/{len(reset_queries)} 个表的自增ID")
 
         # 提交事务
         db.commit()
+
+        # 验证自增ID重置结果
+        print("🔍 验证自增ID重置结果...")
+        try:
+            auto_increment_status = db.execute(text("""
+                SELECT TABLE_NAME, AUTO_INCREMENT 
+                FROM information_schema.TABLES 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME IN ('comments', 'posts', 'human_users', 'user_templates')
+                ORDER BY TABLE_NAME
+            """)).fetchall()
+            
+            for table_name, auto_increment in auto_increment_status:
+                status = "✅" if auto_increment == 1 else "❌"
+                print(f"  {status} {table_name}: AUTO_INCREMENT = {auto_increment}")
+        except Exception as e:
+            print(f"  ⚠️  无法验证自增ID状态: {e}")
 
         print(f"🎉 清理完成！共删除 {deleted} 条记录，自增ID已重置")
         
