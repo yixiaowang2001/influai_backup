@@ -12,7 +12,7 @@ class LLMConfig:
     
     # 默认配置
     DEFAULT_CONFIG = {
-        "model_name": "qwen-turbo",
+        "model_name": "qwen-flash-2025-07-28",
         "temperature": 0.5,
         "max_tokens": 512,
         "max_retries": 3,
@@ -30,7 +30,7 @@ class LLMConfig:
     
     # 帖子统计预测配置
     POST_STATS_CONFIG = {
-        "model_name": "qwen-turbo",
+        "model_name": "qwen-flash-2025-07-28",
         "temperature": 0.1,
         "max_tokens": 256,
         "max_retries": 3,

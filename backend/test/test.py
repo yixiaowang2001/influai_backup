@@ -239,25 +239,30 @@ class CommentGenerationTester:
                     continue
                     
                 print(f"\n 扩展 {attitude.value} 态度评论:")
-                print(f"   原始种子: {comments}")
+                print(f"   原始种子评论 ({len(comments)}条):")
+                for i, seed_comment in enumerate(comments, 1):
+                    print(f"     种子{i}: {seed_comment}")
                 
-                # 选择第一条评论作为扩展种子
-                seed_comment = comments[0] if comments else "默认评论"
+                # 为每个种子评论生成扩展
+                all_expanded_for_attitude = []
+                for i, seed_comment in enumerate(comments, 1):
+                    print(f"\n     基于种子{i}的扩展:")
+                    expanded = expand_lv1_comments(
+                        persona=template.persona,
+                        post_content=post_content,
+                        attitude_type=attitude,
+                        seed_comments=[seed_comment],
+                        expand_count=3,
+                        retry=3
+                    )
+                    
+                    print(f"       扩展结果 ({len(expanded)}条):")
+                    for j, comment in enumerate(expanded, 1):
+                        print(f"         {j}. {comment}")
+                        all_expanded_for_attitude.append(comment)
+                        total_expanded += 1
                 
-                # 调用扩展方法
-                expanded = expand_lv1_comments(
-                    persona=template.persona,
-                    post_content=post_content,
-                    attitude_type=attitude,
-                    seed_comments=[seed_comment],
-                    expand_count=3,
-                    retry=3
-                )
-                
-                print(f"   扩展结果 ({len(expanded)}条):")
-                for i, comment in enumerate(expanded, 1):
-                    print(f"     {i}. {comment}")
-                    total_expanded += 1
+                print(f"\n   {attitude.value} 态度总计扩展: {len(all_expanded_for_attitude)} 条评论")
             
             print(f"\n 总计扩展 {total_expanded} 条评论")
             return True
@@ -422,6 +427,16 @@ class CommentGenerationTester:
 
 def main():
     """主函数"""
+    # 设置环境变量
+    import os
+    os.environ["DB_TYPE"] = "mysql"
+    os.environ["MYSQL_HOST"] = "localhost"
+    os.environ["MYSQL_PORT"] = "3306"
+    os.environ["MYSQL_USER"] = "root"
+    os.environ["MYSQL_PASSWORD"] = "influai"
+    os.environ["MYSQL_DATABASE"] = "influai"
+    os.environ["MYSQL_CHARSET"] = "utf8mb4"
+    
     # 测试配置 - 在这里修改测试参数
     TEST_CONFIG = {
         "template_id": 1,  # 指定模板ID，None表示使用第一个可用模板
