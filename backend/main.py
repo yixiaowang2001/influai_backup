@@ -304,7 +304,7 @@ class CommentPushManager:
                 db.commit()
                 
                 # 在终端打印推送信息
-                print(f"🚀 推送评论到前端 - 帖子ID: {post_id}, 评论ID: {comment_to_push.comment_id}")
+                print(f" 推送评论到前端 - 帖子ID: {post_id}, 评论ID: {comment_to_push.comment_id}")
                 print(f"   评论内容: {comment_to_push.comment_content[:50]}...")
                 print(f"   评论者: {author_info.get('username', '未知')}")
                 print(f"   推送时间: {datetime.now().strftime('%H:%M:%S')}")
@@ -324,12 +324,12 @@ class CommentPushManager:
             }
             await manager.broadcast(json.dumps(completion_message))
             
-            print(f"✅ 帖子 {post_id} 的评论推送任务完成")
+            print(f" 帖子 {post_id} 的评论推送任务完成")
             print("=" * 80)
             
         except Exception as e:
             logger.error(f"推送评论失败: {e}")
-            print(f"❌ 帖子 {post_id} 的评论推送失败: {e}")
+            print(f" 帖子 {post_id} 的评论推送失败: {e}")
         finally:
             # 清理任务
             if post_id in self.push_tasks:
@@ -421,7 +421,7 @@ async def generate_comments_for_post(post_id: int, human_user_id: int, db: Sessi
         db.commit()
         
         logger.info(f"帖子 {post_id} 的评论生成完成，共 {len(post_service.comments)} 条")
-        print(f"📝 帖子 {post_id} 的评论生成完成，共 {len(post_service.comments)} 条")
+        print(f" 帖子 {post_id} 的评论生成完成，共 {len(post_service.comments)} 条")
         print(f"   点赞数预测: {stats['pred_like_count']}")
         print(f"   评论数预测: {stats['pred_comment_count']}")
         print(f"   新粉丝数预测: {stats['new_follower_count']}")
@@ -431,7 +431,7 @@ async def generate_comments_for_post(post_id: int, human_user_id: int, db: Sessi
         
     except Exception as e:
         logger.error(f"生成评论失败: {e}")
-        print(f"❌ 帖子 {post_id} 的评论生成失败: {e}")
+        print(f" 帖子 {post_id} 的评论生成失败: {e}")
         import traceback
         logger.error(f"错误详情: {traceback.format_exc()}")
 
@@ -772,7 +772,7 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
         comment_push_task = asyncio.create_task(comment_push_manager.start_comment_push_task(created_post.post_id, db))
         
         # 在终端打印任务启动信息
-        print(f"🚀 帖子发布成功！ID: {created_post.post_id}")
+        print(f" 帖子发布成功！ID: {created_post.post_id}")
         print(f"   内容: {created_post.post_content[:50]}...")
         print(f"   作者: {current_user.username}")
         print(f"   发布时间: {datetime.now().strftime('%H:%M:%S')}")

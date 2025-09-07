@@ -17,5 +17,5 @@ sys.path.insert(0, project_root)
 from test_comment_generation import main
 
 if __name__ == "__main__":
-    print("🚀 启动 InfluAI 评论生成测试...")
+    print(" 启动 InfluAI 评论生成测试...")
     main()
