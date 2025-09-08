@@ -506,7 +506,7 @@ def main():
     # 测试配置 - 在这里修改测试参数
     TEST_CONFIG = {
         "template_id": 1,  # 指定模板ID，None表示使用第一个可用模板
-        "post_content": "今天天气真好，心情也很棒！"  # 测试用的帖子内容
+        "post_content": "天好累，不想演出……"  # 测试用的帖子内容
     }
 
     tester = CommentGenerationTester(

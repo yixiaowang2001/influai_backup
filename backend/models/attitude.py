@@ -3,7 +3,7 @@ from enum import Enum, unique
 
 @unique
 class Attitude(Enum):
-    BAD = (-1.0, -0.7)
+    BAD = (-1.0, -0.8)
     NEUTRAL_NEGATIVE = (-0.8, -0.3)
     NEUTRAL = (-0.3, 0.3)
     NEUTRAL_POSITIVE = (0.3, 0.7)
