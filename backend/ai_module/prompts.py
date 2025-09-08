@@ -35,7 +35,7 @@ def get_predict_post_stats_prompt(
     user_prompt = f"""请预测以下社交媒体帖子的互动数据：
 
 **用户人设**：{persona}
-**粉丝数量**：{follower_count}
+**粉丝数量（着重关注）**：{follower_count}
 **帖子内容**："{post_content}"
 **历史帖子**：{history_posts if history_posts else "无"}
 
