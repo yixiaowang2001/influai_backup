@@ -6,8 +6,8 @@
 用于初始化数据库和加载用户模板数据
 """
 
-import sys
 import os
+import sys
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

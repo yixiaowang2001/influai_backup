@@ -16,10 +16,10 @@ InfluAI 评论生成逻辑测试脚本
 - 显示详细的生成过程和统计信息
 """
 
-import sys
-import os
 import json
-from typing import Dict, List, Optional
+import os
+import sys
+from typing import Dict, Optional
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,8 +32,7 @@ from backend.ai_module.comment_related import (
 )
 from backend.services.post_service import PostService
 from backend.database.database import get_db
-from backend.database.crud import get_all_user_templates, create_human_user, get_human_user_by_id
-from backend.models import Attitude
+from backend.database.crud import get_all_user_templates, create_human_user
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)

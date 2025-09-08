@@ -13,18 +13,20 @@ logger = get_logger(__name__)
 _engine = None
 _SessionLocal = None
 
+
 def get_engine():
     """获取数据库引擎，延迟初始化"""
     global _engine
     if _engine is None:
         DATABASE_URL = DatabaseConfig.get_database_url()
         ENGINE_KWARGS = DatabaseConfig.get_engine_kwargs()
-        
+
         logger.info(f"数据库类型: {DatabaseConfig.get_db_type()}")
         logger.info(f"数据库URL: {DATABASE_URL}")
-        
+
         _engine = create_engine(DATABASE_URL, **ENGINE_KWARGS)
     return _engine
+
 
 def get_session_local():
     """获取会话工厂，延迟初始化"""
@@ -33,8 +35,10 @@ def get_session_local():
         _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
     return _SessionLocal
 
+
 # 创建基础类
 Base = declarative_base()
+
 
 def get_db() -> Generator[Session, None, None]:
     """
@@ -58,6 +62,7 @@ def get_db_session() -> Session:
         Session: 数据库会话
     """
     return get_session_local()()
+
 
 # 为了向后兼容，提供engine属性
 def engine():
