@@ -58,7 +58,7 @@ class CommentGenerationTester:
         
         # 测试配置 - 可以通过参数或直接修改这些变量
         self.template_id = template_id or 1
-        self.post_content = post_content or "今天天气真好，心情也很棒！"
+        self.post_content = post_content or "大家明天都来看我的演唱会！"
         
         # 用于收集所有生成的LV1评论
         self.all_lv1_comments = {
