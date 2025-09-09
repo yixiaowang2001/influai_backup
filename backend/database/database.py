@@ -4,8 +4,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-from configs.database_config import DatabaseConfig
-from utils.logger import get_logger
+from ..configs.database_config import DatabaseConfig
+from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 

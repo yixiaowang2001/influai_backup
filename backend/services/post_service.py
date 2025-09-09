@@ -103,12 +103,13 @@ class PostService:
         """
         return distribute_by_ratio(total, self.user_template["commenter_distribution"])
 
-    def assign_ai_user_to_comment(self, comment: db_models.Comment) -> Union[Any, None]:
+    def assign_ai_user_to_comment(self, comment: db_models.Comment, attitude: Attitude) -> Union[Any, None]:
         """
-        为评论分配AI用户
+        为评论分配AI用户（按态度匹配）
         
         Args:
             comment: 评论对象
+            attitude: 评论的态度类型
             
         Returns:
             str: 分配的AI用户ID
@@ -116,10 +117,10 @@ class PostService:
         import random
         import math
 
-        # 获取可用的AI用户（不按态度过滤，因为数据库模型中没有comment_attitude字段）
+        # 获取对应态度的AI用户
         available_users = get_available_ai_users_by_attitude(
             db=self.db,
-            attitude_type=None,  # 不按态度过滤
+            attitude_type=attitude,  # 按态度过滤
             exclude_user_ids=list(self.assigned_ai_users)
         )
 
@@ -128,12 +129,12 @@ class PostService:
             available_users = [user for user in available_users if user.human_user_id == self.human_user_id]
 
         if not available_users:
-            logger.warning(f"没有可用的AI用户" + (f"，人类用户ID: {self.human_user_id}" if self.human_user_id else ""))
+            logger.warning(f"没有可用的{attitude}态度AI用户" + (f"，人类用户ID: {self.human_user_id}" if self.human_user_id else ""))
             # 如果没有可用用户，重置已分配用户列表（允许重复分配）
             self.assigned_ai_users.clear()
             available_users = get_available_ai_users_by_attitude(
                 db=self.db,
-                attitude_type=None  # 不按态度过滤
+                attitude_type=attitude  # 按态度过滤
             )
             
             # 再次过滤human_user_id
@@ -141,7 +142,7 @@ class PostService:
                 available_users = [user for user in available_users if user.human_user_id == self.human_user_id]
             
             if not available_users:
-                logger.error(f"数据库中没有任何AI用户" + (f"，人类用户ID: {self.human_user_id}" if self.human_user_id else ""))
+                logger.error(f"数据库中没有任何{attitude}态度的AI用户" + (f"，人类用户ID: {self.human_user_id}" if self.human_user_id else ""))
                 return None
 
         # 计算每个用户的权重（基于态度值的绝对值）
@@ -322,7 +323,7 @@ class PostService:
             expanded_comments = self.expand_lv1_comments_by_attitude(att, comment_count)
             for comment in expanded_comments:
                 comment.post_id = post.post_id
-                ai_user_id = self.assign_ai_user_to_comment(comment)
+                ai_user_id = self.assign_ai_user_to_comment(comment, att)
                 if ai_user_id:
                     comment.sender_id = ai_user_id
                 self.comments.append(comment)
@@ -344,7 +345,7 @@ class PostService:
             expanded_comments = self.expand_lv1_comments_by_attitude(att, comment_count)
             for comment in expanded_comments:
                 comment.post_id = post_id
-                ai_user_id = self.assign_ai_user_to_comment(comment)
+                ai_user_id = self.assign_ai_user_to_comment(comment, att)
                 if ai_user_id:
                     comment.sender_id = ai_user_id
                 self.comments.append(comment)
