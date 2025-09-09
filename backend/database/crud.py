@@ -3,9 +3,9 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-import backend.database.models as models
-from backend.database.models import Post as PostModel, Comment as CommentModel, AIUser as AIUserModel
-from backend.utils.logger import get_logger
+import database.models as models
+from database.models import Post as PostModel, Comment as CommentModel, AIUser as AIUserModel
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
