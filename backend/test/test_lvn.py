@@ -23,12 +23,15 @@ import sys
 from typing import List, Tuple, Optional
 
 # 添加项目根目录到Python路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+backend_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+sys.path.insert(0, backend_path)
 
-from ..models import Attitude
-from ..database.database import get_db
-from ..database import crud
-from ..database import models
+from backend.models import Attitude
+from backend.database.database import get_db
+from backend.database import crud
+from backend.database import models
 
 
 def get_comments_from_database(post_id: int, parent_comment_id: Optional[int] = None) -> List[Tuple[str, Attitude]]:
