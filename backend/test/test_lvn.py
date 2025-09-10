@@ -97,6 +97,7 @@ def get_breadth_generation_prompt(
     parent_comment_content: str,
     parent_comment_attitude: str,
     is_human_user: bool,
+    comment_count: int,
     grandparent_comment_content: Optional[str] = None
 ) -> Tuple[str, str]:
     """
@@ -108,6 +109,7 @@ def get_breadth_generation_prompt(
         parent_comment_content: 上级评论内容
         parent_comment_attitude: 上级评论态度
         is_human_user: 上级评论是否是人类用户
+        comment_count: 帖子评论数（用于AI决定生成总数和分布）
         grandparent_comment_content: 上级评论的上级评论内容（如果有）
         
     Returns:
@@ -124,38 +126,51 @@ def get_breadth_generation_prompt(
 上级评论内容：{parent_comment_content}
 上级评论态度：{parent_comment_attitude}
 上级评论类型：{'人类用户' if is_human_user else 'AI用户'}
+
+帖子评论数：{comment_count}条
 """
     
     if grandparent_comment_content:
         context_info += f"上级评论的上级评论：{grandparent_comment_content}\n"
     
-    system_prompt = f"""你是一个专业的社交媒体评论生成助手。你的任务是模拟其他AI用户对上级评论的看法，生成多条不同态度的子评论。
+    system_prompt = f"""你是一个专业的社交媒体评论生成助手。你的任务是模拟其他AI用户对发帖博主的看法，生成多条不同态度的子评论。
 
 人设信息：{persona}
 
 生成要求：
-1. 模拟其他AI用户对上级评论的反应，不是发帖者的视角
+1. 模拟其他AI用户对发帖博主的反应，不是发帖者的视角
 2. 根据上级评论的态度，主要生成方向一致和完全相反的评论
 3. 生成策略：{attitude_strategy}
 4. 评论内容要自然、真实，符合社交媒体用户的表达习惯
-5. 每条评论都要有明确的态度倾向
-6. 生成数量要合理，确保有衰减效果
+5. 每条评论都要有明确的态度倾向，双方攻击性要强一些
+6. 根据帖子的评论数（{comment_count}条）自己决定生成总数和态度分布，不要数量均匀生成
+7. 生成总数可以取决于帖子的评论数，分布要符合社交媒体的真实情况
+8. 不要生成中立评论，只生成有明确立场和攻击性的评论
 
-态度类型说明：
-- 极差态度：强烈反对、批评、讽刺
-- 不友善态度：质疑、怀疑、轻微批评
-- 中立态度：客观分析、中性观点
-- 友善态度：支持、赞同、正面回应
-- 极好态度：热情支持、赞美、强烈赞同
-- 狂热态度：极度兴奋、崇拜、过度赞美
+态度类型说明（都是对发帖博主的态度）：
+- 极差态度：对博主强烈反对、批评、讽刺、攻击性很强（会间接攻击支持博主的父评论）
+- 不友善态度：对博主质疑、怀疑、轻微批评、有一定攻击性
+- 友善态度：对博主支持、赞同、正面回应，但要有一定攻击性
+- 极好态度：对博主热情支持、赞美、强烈赞同，攻击性较强
+- 狂热态度：对博主极度兴奋、崇拜、过度赞美，攻击性很强
 
-请按照上述策略生成不同态度的评论。"""
+请根据帖子评论数和父评论态度，自己决定生成总数和各态度的分布，确保双方都有较强的攻击性，不要生成中立评论。"""
 
     user_prompt = f"""请基于以下信息生成多条不同态度的子评论：
 
 {context_info}
 
-请按照生成策略生成符合人设的、针对上级评论的不同态度回复。
+请按照生成策略生成符合人设的、针对发帖博主的不同态度回复。
+
+重要提醒：
+- 所有态度都是对发帖博主的，不是对上级评论的
+- 极差态度：对博主有极差态度，会攻击博主，间接也会攻击支持博主的上级评论
+- 不友善态度：对博主不友善，质疑博主
+- 友善态度：对博主友善，支持上级评论
+- 极好态度：对博主极好，支持上级评论  
+- 狂热态度：对博主狂热，支持上级评论
+- 回复可以围绕上级评论提到的产品（如YSL、Armani）来展开对博主的评价
+- 确保回复内容与上级评论内容高度相关
 
 返回格式为JSON：
 {{
@@ -205,6 +220,7 @@ def get_attitude_generation_strategy(parent_attitude: str) -> str:
 def breadth_generate_lvn_comments(
     post_id: int,
     parent_comment_id: int,
+    comment_count: int = 87,
     retry: int = 5
 ) -> Dict[str, List[str]]:
     """
@@ -213,6 +229,7 @@ def breadth_generate_lvn_comments(
     Args:
         post_id: 帖子ID（获取帖子内容）
         parent_comment_id: 上级评论ID（获取评论态度、评论内容、上级评论是否是人类用户、上级评论的上级评论）
+        comment_count: 帖子评论数（用于决定生成总数和分布）
         retry: 重试次数（默认=5）
         
     Returns:
@@ -290,6 +307,7 @@ def breadth_generate_lvn_comments(
             parent_comment_content=parent_comment_content,
             parent_comment_attitude=parent_comment_attitude,
             is_human_user=is_human_user,
+            comment_count=comment_count,
             grandparent_comment_content=grandparent_comment_content
         )
         
@@ -314,6 +332,10 @@ def breadth_generate_lvn_comments(
                     # 按态度分类评论
                     result = organize_comments_by_attitude(comments)
                     logger.info(f"成功生成{len(comments)}条广度LVN评论")
+                    
+                    # 打印JSON格式结果
+                    print_comments_json(result)
+                    
                     return result
                     
             logger.warning(f"广度生成LVN评论失败，第{i + 1}次重试")
@@ -336,27 +358,24 @@ def organize_comments_by_attitude(comments: List[Dict[str, str]]) -> Dict[str, L
     Returns:
         Dict[str, List[str]]: 按态度分类的评论字典
     """
-    # 初始化所有态度的空列表
+    # 初始化所有态度的空列表（不包含中立）
     result = {
         "极差": [],
         "不友善": [],
-        "中立": [],
         "友善": [],
         "极好": [],
         "狂热": []
     }
     
-    # 态度映射（处理可能的变体）
+    # 态度映射（处理可能的变体，不包含中立）
     attitude_mapping = {
         "极差态度": "极差",
         "不友善态度": "不友善", 
-        "中立态度": "中立",
         "友善态度": "友善",
         "极好态度": "极好",
         "狂热态度": "狂热",
         "极差": "极差",
         "不友善": "不友善",
-        "中立": "中立", 
         "友善": "友善",
         "极好": "极好",
         "狂热": "狂热"
@@ -369,11 +388,39 @@ def organize_comments_by_attitude(comments: List[Dict[str, str]]) -> Dict[str, L
         if not content:
             continue
             
-        # 映射态度到标准格式
-        mapped_attitude = attitude_mapping.get(attitude, "中立")
-        result[mapped_attitude].append(content)
+        # 映射态度到标准格式（如果不在映射中，跳过中立评论）
+        mapped_attitude = attitude_mapping.get(attitude)
+        if mapped_attitude:
+            result[mapped_attitude].append(content)
     
     return result
+
+
+def print_comments_json(comments_by_attitude: Dict[str, List[str]]) -> None:
+    """
+    打印评论JSON格式
+    
+    Args:
+        comments_by_attitude: 按态度分类的评论字典
+    """
+    import json
+    
+    # 过滤掉空的列表
+    filtered_result = {attitude: comments for attitude, comments in comments_by_attitude.items() if comments}
+    
+    # 打印JSON格式
+    print("生成的评论JSON格式：")
+    print("=" * 80)
+    print(json.dumps(filtered_result, ensure_ascii=False, indent=2))
+    print("=" * 80)
+    
+    # 打印统计信息
+    total_comments = sum(len(comments) for comments in comments_by_attitude.values())
+    print(f"总生成评论数：{total_comments}")
+    for attitude, comments in comments_by_attitude.items():
+        if comments:
+            print(f"{attitude}态度：{len(comments)}条")
+    print("=" * 80)
 
 
 def test_breadth_generation():
@@ -385,11 +432,13 @@ def test_breadth_generation():
     # 测试参数
     post_id = 1
     parent_comment_id = 1
+    comment_count = 87  # 当前帖子的评论数
     retry = 3
     
     print(f"测试参数：")
     print(f"  帖子ID：{post_id}")
     print(f"  上级评论ID：{parent_comment_id}")
+    print(f"  帖子评论数：{comment_count}")
     print(f"  重试次数：{retry}")
     print()
     
@@ -397,20 +446,13 @@ def test_breadth_generation():
     comments_by_attitude = breadth_generate_lvn_comments(
         post_id=post_id,
         parent_comment_id=parent_comment_id,
+        comment_count=comment_count,
         retry=retry
     )
     
     if comments_by_attitude:
         total_comments = sum(len(comments) for comments in comments_by_attitude.values())
-        print(f"成功生成{total_comments}条广度LVN评论：")
-        print("-" * 60)
-        
-        for attitude, comments in comments_by_attitude.items():
-            if comments:
-                print(f"{attitude}态度 ({len(comments)}条)：")
-                for i, comment in enumerate(comments, 1):
-                    print(f"  {i}. {comment}")
-                print()
+        print(f"成功生成{total_comments}条广度LVN评论")
     else:
         print("广度生成失败，未生成任何评论")
     
@@ -487,6 +529,7 @@ def test_prompt_generation():
                               "完全是两种风格好吗，看着它们脑海里瞬间浮现自己初学化妆的样子……真的太感慨了！！必须再次表白博主爱死你啦！")
     parent_comment_attitude = "狂热"
     is_human_user = False
+    comment_count = 87
     grandparent_comment_content = None
     
     print(f"测试参数：")
@@ -495,6 +538,7 @@ def test_prompt_generation():
     print(f"  上级评论内容：{parent_comment_content}")
     print(f"  上级评论态度：{parent_comment_attitude}")
     print(f"  是否人类用户：{is_human_user}")
+    print(f"  帖子评论数：{comment_count}")
     print(f"  上级评论的上级评论：{grandparent_comment_content}")
     print()
     
@@ -505,6 +549,7 @@ def test_prompt_generation():
         parent_comment_content=parent_comment_content,
         parent_comment_attitude=parent_comment_attitude,
         is_human_user=is_human_user,
+        comment_count=comment_count,
         grandparent_comment_content=grandparent_comment_content
     )
     
