@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-InfluAI LVN评论生成测试脚本 - 深度优先自我问答方案
+InfluAI 评论筛选测试脚本
 
-基于第三个方案：深度优先自我问答方案
-通过一次大模型调用，模拟所有用户角色，直接生成完整的评论对话链
+功能：
+- 从数据库获取评论数据
+- 基于态度和长度系数筛选重要评论
+- 支持不同层级的评论筛选
+- 提供详细的测试和统计功能
 
 使用方法：
 1. 确保已配置好数据库和API密钥
 2. 运行脚本：python test_lvn.py
-3. 观察LVN评论生成过程和结果
-
-功能：
-- 测试深度优先自我问答方案的LVN评论生成
-- 支持热度分数计算和热门评论筛选
-- 支持多角色模拟和对话连贯性
-- 显示详细的生成过程和统计信息
+3. 观察评论筛选过程和结果
 """
 
 import os
 import sys
+import math
 from typing import List, Tuple, Optional
 
 # 添加项目根目录到Python路径
@@ -52,7 +50,6 @@ def get_comments_from_database(post_id: int, parent_comment_id: Optional[int] = 
         if parent_comment_id is None:
             # 获取帖子下的一级评论
             db_comments = crud.get_comments_by_post(db, post_id)
-            # 过滤出一级评论（comment_level=1）
             db_comments = [c for c in db_comments if c.comment_level == 1]
         else:
             # 获取指定父评论下的子评论
@@ -62,11 +59,9 @@ def get_comments_from_database(post_id: int, parent_comment_id: Optional[int] = 
             ).all()
 
         for comment in db_comments:
-            # 获取评论内容
             content = comment.comment_content
-
-            # 获取态度信息
             attitude = None
+            
             if comment.sender_type == 'ai_user':
                 # 从AI用户获取态度值
                 ai_user = db.query(models.AIUser).filter(
@@ -75,9 +70,7 @@ def get_comments_from_database(post_id: int, parent_comment_id: Optional[int] = 
                 if ai_user:
                     attitude = Attitude.from_value(ai_user.attitude_value)
             else:
-                # 人类用户，使用comment_user_type作为态度
-                # 这里需要根据实际的comment_user_type到Attitude的映射关系来转换
-                # 暂时使用默认的中立态度
+                # 人类用户，使用默认的中立态度
                 attitude = Attitude.NEUTRAL
 
             if attitude:
@@ -91,10 +84,47 @@ def get_comments_from_database(post_id: int, parent_comment_id: Optional[int] = 
     return comments
 
 
+def get_attitude_coefficient(attitude: Attitude) -> float:
+    """根据态度计算系数"""
+    attitude_coeff_map = {
+        Attitude.BAD: 0.9,  # 极差态度 - 最高系数
+        Attitude.PERFECT: 0.7,  # 狂热态度 - 高系数
+        Attitude.GOOD: 0.5,  # 极好态度 - 中等系数
+        Attitude.NEUTRAL_NEGATIVE: 0.6,  # 不友善态度 - 高系数
+        Attitude.NEUTRAL: 0.3,  # 中立态度 - 中等系数
+        Attitude.NEUTRAL_POSITIVE: 0.1  # 友善态度 - 低系数
+    }
+    return attitude_coeff_map.get(attitude, 0.1)
+
+
+def get_length_coefficient(comment: str) -> float:
+    """
+    根据评论长度计算系数
+    
+    评论越长，系数越高，但20字后权重增加量递减
+    使用分段函数实现递减增长
+    """
+    length = len(comment)
+
+    # 长度系数范围: 0.5 - 1.8
+    if length <= 10:
+        return 0.5
+    elif length <= 20:
+        # 10-20字符：线性增长 0.5-1.0
+        return 0.5 + (length - 10) * 0.5 / 10
+    elif length <= 50:
+        # 20-50字符：递减增长 1.0-1.4
+        progress = (length - 20) / 30
+        return 1.0 + 0.4 * math.sqrt(progress)
+    else:
+        # 50字符以上：极缓慢增长 1.4-1.8
+        return 1.4 + 0.4 * math.log(length - 49) / math.log(200)
+
+
 def filter_important_comments_from_db(post_id: int, parent_comment_id: Optional[int] = None, filter_count: int = 10) -> \
 List[Tuple[str, float, Attitude]]:
     """
-    从数据库筛选同层级重要评论
+    从数据库筛选重要评论
     
     参数:
         post_id: 帖子ID（必填）
@@ -127,82 +157,28 @@ List[Tuple[str, float, Attitude]]:
     comment_scores = []
 
     for attitude, comments in attitude_comments.items():
-        if not comments:  # 跳过空的态度分类
+        if not comments:
             continue
 
-        # 系数1：根据态度决定
         attitude_coeff = get_attitude_coefficient(attitude)
 
         for comment in comments:
-            # 系数2：根据评论长度决定
             length_coeff = get_length_coefficient(comment)
-
-            # 综合系数 = 态度系数 * 长度系数
             combined_score = attitude_coeff * length_coeff
-
             comment_scores.append((comment, combined_score, attitude))
 
     # 按综合系数降序排序
     comment_scores.sort(key=lambda x: x[1], reverse=True)
 
-    # 返回筛选结果
     return comment_scores[:target_count]
 
 
-def get_attitude_coefficient(attitude: Attitude) -> float:
-    """
-    根据态度计算系数1
-    
-    极端态度(BAD、PERFECT、GOOD): 0.8-0.9
-    中立: 0.3
-    友善、不友善: 0.1
-    """
-    attitude_coeff_map = {
-        Attitude.BAD: 0.9,  # 极差态度 - 最高系数
-        Attitude.PERFECT: 0.85,  # 狂热态度 - 高系数
-        Attitude.GOOD: 0.8,  # 极好态度 - 高系数
-        Attitude.NEUTRAL: 0.3,  # 中立态度 - 中等系数
-        Attitude.NEUTRAL_POSITIVE: 0.1,  # 友善态度 - 低系数
-        Attitude.NEUTRAL_NEGATIVE: 0.1  # 不友善态度 - 低系数
-    }
-    return attitude_coeff_map.get(attitude, 0.1)
-
-
-def get_length_coefficient(comment: str) -> float:
-    """
-    根据评论长度计算系数2
-    
-    评论越长，系数越高
-    使用对数函数平滑增长
-    """
-    length = len(comment)
-
-    # 使用对数函数，避免过长评论系数过高
-    # 长度系数范围: 0.5 - 1.5
-    if length <= 10:
-        return 0.5
-    elif length <= 50:
-        # 10-50字符：线性增长 0.5-1.0
-        return 0.5 + (length - 10) * 0.5 / 40
-    else:
-        # 50字符以上：对数增长 1.0-1.5
-        import math
-        return 1.0 + 0.5 * math.log(length - 49) / math.log(100)
-
-
 def print_all_comments(post_id: int, parent_comment_id: Optional[int] = None):
-    """
-    打印所有评论内容
-    
-    参数:
-        post_id: 帖子ID（必填）
-        parent_comment_id: 父评论ID（可选，为空则打印一级评论，不为空则打印子评论）
-    """
+    """打印所有评论内容"""
     print("=== 打印所有评论内容 ===")
     print(f"帖子ID: {post_id}")
     print(f"父评论ID: {parent_comment_id if parent_comment_id else '无（一级评论）'}")
     
-    # 从数据库获取评论数据
     comments_data = get_comments_from_database(post_id, parent_comment_id)
     
     if not comments_data:
@@ -228,15 +204,8 @@ def print_all_comments(post_id: int, parent_comment_id: Optional[int] = None):
 
 
 def test_filter_comments_from_db(post_id: int, parent_comment_id: Optional[int] = None, filter_count: int = 10):
-    """
-    测试从数据库筛选重要评论功能
-    
-    参数:
-        post_id: 帖子ID（必填）
-        parent_comment_id: 父评论ID（可选）
-        filter_count: 筛选数量（可选，默认为10）
-    """
-    print("=== 测试从数据库筛选同层级重要评论功能 ===")
+    """测试从数据库筛选重要评论功能"""
+    print("=== 测试从数据库筛选重要评论功能 ===")
     print(f"帖子ID: {post_id}")
     print(f"父评论ID: {parent_comment_id if parent_comment_id else '无（一级评论）'}")
     print(f"筛选数量: {filter_count}")
@@ -266,19 +235,56 @@ def test_filter_comments_from_db(post_id: int, parent_comment_id: Optional[int] 
     return filtered_comments
 
 
+def test_coefficients():
+    """测试系数算法"""
+    print("=== 测试系数算法 ===")
+    
+    # 测试态度系数
+    print("\n态度系数:")
+    attitudes = [Attitude.BAD, Attitude.NEUTRAL_NEGATIVE, Attitude.PERFECT, 
+                Attitude.GOOD, Attitude.NEUTRAL, Attitude.NEUTRAL_POSITIVE]
+    for attitude in attitudes:
+        coeff = get_attitude_coefficient(attitude)
+        print(f"  {str(attitude):8s}: {coeff:.3f}")
+    
+    # 测试长度系数
+    print("\n长度系数测试:")
+    test_comments = [
+        "短评论",  # 3字
+        "这是一个中等长度的评论内容",  # 12字
+        "这是一个比较长的评论内容，用来测试20字左右的长度系数计算效果",  # 25字
+        "这是一个非常长的评论内容，用来测试50字左右的长度系数计算效果，看看递减增长是否正常工作",  # 35字
+        "这是一个超级长的评论内容，用来测试50字以上的长度系数计算效果，看看递减增长是否正常工作，以及极缓慢增长的效果如何，这个评论应该超过50个字符"  # 60字
+    ]
+    
+    for comment in test_comments:
+        length = len(comment)
+        coeff = get_length_coefficient(comment)
+        print(f"  长度: {length:2d}字, 系数: {coeff:.3f}, 内容: {comment[:20]}...")
+    
+    print("\n=== 筛选机制说明 ===")
+    print("评论筛选完全基于综合系数排序（态度系数 × 长度系数）")
+    print("极差评论系数：0.9（最高权重）")
+    print("不友善评论系数：0.6（高权重）")
+    print("狂热评论系数：0.7（高权重）")
+    print("极好评论系数：0.5（中等权重）")
+    print("中立评论系数：0.3（低权重）")
+    print("友善评论系数：0.1（最低权重）")
+
+
 if __name__ == "__main__":
     # 设置数据库密码环境变量
-    import os
     os.environ["MYSQL_PASSWORD"] = "influai"
 
+    # 测试系数算法
+    test_coefficients()
+    
+    print("\n" + "="*80 + "\n")
+    
     # 打印所有评论内容
     print_all_comments(post_id=1)
     
     print("\n" + "="*80 + "\n")
     
-    # 测试数据库筛选功能
-    # 示例：测试帖子ID为1的一级评论筛选
+    # 测试筛选算法
     test_filter_comments_from_db(post_id=1, filter_count=10)
-
-    # 示例：测试帖子ID为1，父评论ID为1的子评论筛选（测试无子评论的情况）
-    test_filter_comments_from_db(post_id=1, parent_comment_id=1, filter_count=3)
