@@ -15,9 +15,9 @@ InfluAI 评论筛选测试脚本
 3. 观察评论筛选过程和结果
 """
 
+import math
 import os
 import sys
-import math
 from typing import List, Tuple, Optional
 
 # 添加项目根目录到Python路径
@@ -61,7 +61,7 @@ def get_comments_from_database(post_id: int, parent_comment_id: Optional[int] = 
         for comment in db_comments:
             content = comment.comment_content
             attitude = None
-            
+
             if comment.sender_type == 'ai_user':
                 # 从AI用户获取态度值
                 ai_user = db.query(models.AIUser).filter(
@@ -122,7 +122,7 @@ def get_length_coefficient(comment: str) -> float:
 
 
 def filter_important_comments_from_db(post_id: int, parent_comment_id: Optional[int] = None, filter_count: int = 10) -> \
-List[Tuple[str, float, Attitude]]:
+        List[Tuple[str, float, Attitude]]:
     """
     从数据库筛选重要评论
     
@@ -178,28 +178,28 @@ def print_all_comments(post_id: int, parent_comment_id: Optional[int] = None):
     print("=== 打印所有评论内容 ===")
     print(f"帖子ID: {post_id}")
     print(f"父评论ID: {parent_comment_id if parent_comment_id else '无（一级评论）'}")
-    
+
     comments_data = get_comments_from_database(post_id, parent_comment_id)
-    
+
     if not comments_data:
         print("未找到评论数据")
         return []
-    
+
     print(f"\n总评论数: {len(comments_data)}")
     print("-" * 80)
-    
+
     # 按态度分组显示
     attitude_groups = {}
     for content, attitude in comments_data:
         if attitude not in attitude_groups:
             attitude_groups[attitude] = []
         attitude_groups[attitude].append(content)
-    
+
     for attitude, comments in attitude_groups.items():
         print(f"\n[{str(attitude):8s}] 态度 ({len(comments)} 条):")
         for i, comment in enumerate(comments, 1):
             print(f"  {i:2d}. {comment}")
-    
+
     return comments_data
 
 
@@ -238,15 +238,15 @@ def test_filter_comments_from_db(post_id: int, parent_comment_id: Optional[int] 
 def test_coefficients():
     """测试系数算法"""
     print("=== 测试系数算法 ===")
-    
+
     # 测试态度系数
     print("\n态度系数:")
-    attitudes = [Attitude.BAD, Attitude.NEUTRAL_NEGATIVE, Attitude.PERFECT, 
-                Attitude.GOOD, Attitude.NEUTRAL, Attitude.NEUTRAL_POSITIVE]
+    attitudes = [Attitude.BAD, Attitude.NEUTRAL_NEGATIVE, Attitude.PERFECT,
+                 Attitude.GOOD, Attitude.NEUTRAL, Attitude.NEUTRAL_POSITIVE]
     for attitude in attitudes:
         coeff = get_attitude_coefficient(attitude)
         print(f"  {str(attitude):8s}: {coeff:.3f}")
-    
+
     # 测试长度系数
     print("\n长度系数测试:")
     test_comments = [
@@ -254,14 +254,15 @@ def test_coefficients():
         "这是一个中等长度的评论内容",  # 12字
         "这是一个比较长的评论内容，用来测试20字左右的长度系数计算效果",  # 25字
         "这是一个非常长的评论内容，用来测试50字左右的长度系数计算效果，看看递减增长是否正常工作",  # 35字
-        "这是一个超级长的评论内容，用来测试50字以上的长度系数计算效果，看看递减增长是否正常工作，以及极缓慢增长的效果如何，这个评论应该超过50个字符"  # 60字
+        "这是一个超级长的评论内容，用来测试50字以上的长度系数计算效果，看看递减增长是否正常工作，以及极缓慢增长的效果如何，这个评论应该超过50个字符"
+        # 60字
     ]
-    
+
     for comment in test_comments:
         length = len(comment)
         coeff = get_length_coefficient(comment)
         print(f"  长度: {length:2d}字, 系数: {coeff:.3f}, 内容: {comment[:20]}...")
-    
+
     print("\n=== 筛选机制说明 ===")
     print("评论筛选完全基于综合系数排序（态度系数 × 长度系数）")
     print("极差评论系数：0.9（最高权重）")
@@ -278,13 +279,13 @@ if __name__ == "__main__":
 
     # 测试系数算法
     test_coefficients()
-    
-    print("\n" + "="*80 + "\n")
-    
+
+    print("\n" + "=" * 80 + "\n")
+
     # 打印所有评论内容
     print_all_comments(post_id=1)
-    
-    print("\n" + "="*80 + "\n")
-    
+
+    print("\n" + "=" * 80 + "\n")
+
     # 测试筛选算法
     test_filter_comments_from_db(post_id=1, filter_count=10)

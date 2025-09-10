@@ -30,7 +30,6 @@ from backend.ai_module.comment_related import (
     expand_lv1_comments,
     predict_comment_likes
 )
-from backend.models import Attitude
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -330,11 +329,11 @@ class CommentGenerationTester:
                 "expanded": {},
                 "metadata": self.all_lv1_comments["metadata"]
             }
-            
+
             # 转换种子评论数据，只保留评论内容
             for key, comments in self.all_lv1_comments["seeds"].items():
                 json_data["seeds"][str(key)] = [comment["content"] for comment in comments]
-            
+
             # 转换扩展评论数据，只保留评论内容
             for key, comments in self.all_lv1_comments["expanded"].items():
                 json_data["expanded"][str(key)] = [comment["content"] for comment in comments]

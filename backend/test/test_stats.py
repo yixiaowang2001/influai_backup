@@ -5,9 +5,9 @@
 测试基于人设和帖子内容生成相关数据指标的功能
 """
 
+import json
 import os
 import sys
-import json
 from datetime import datetime
 
 # 添加项目根目录到Python路径
@@ -15,7 +15,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.ai_module.post_related import predict_post_stats
 from backend.ai_module.prompts import get_predict_post_stats_prompt
-
 
 # 本地人设模板数据
 LOCAL_PERSONA_TEMPLATES = {
@@ -108,10 +107,10 @@ LOCAL_PERSONA_TEMPLATES = {
 
 class StatsPredictionTester:
     """帖子统计数据预测测试器"""
-    
+
     def __init__(self):
         self.test_results = []
-    
+
     def show_local_templates(self):
         """显示本地人设模板信息"""
         print("\n=== 本地人设模板信息 ===")
@@ -123,7 +122,7 @@ class StatsPredictionTester:
             print(f"  评论者分布:")
             for attitude, ratio in template['commenter_distribution'].items():
                 print(f"    {attitude}: {ratio:.1%}")
-        
+
     def test_predict_post_stats(self, persona, follower_count, post_content, history_posts=None):
         """测试帖子统计数据预测功能"""
         print(f"\n=== 测试帖子统计数据预测 ===")
@@ -132,16 +131,16 @@ class StatsPredictionTester:
         print(f"帖子内容: {post_content}")
         if history_posts:
             print(f"历史帖子: {history_posts}")
-        
+
         try:
             # 调用预测函数
             result = predict_post_stats(persona, follower_count, post_content, history_posts)
-            
+
             print(f"\n预测结果:")
             print(f"新增关注: {result.get('pred_new_follower_count', 'N/A')}")
             print(f"评论量: {result.get('pred_comment_count', 'N/A')}")
             print(f"点赞量: {result.get('pred_like_count', 'N/A')}")
-            
+
             # 保存测试结果
             test_result = {
                 'timestamp': datetime.now().isoformat(),
@@ -152,40 +151,40 @@ class StatsPredictionTester:
                 'prediction': result
             }
             self.test_results.append(test_result)
-            
+
             return result
-            
+
         except Exception as e:
             print(f"预测失败: {str(e)}")
             return None
-    
+
     def test_prompt_generation(self, persona, follower_count, post_content, history_posts=None):
         """测试prompt生成功能"""
         print(f"\n=== 测试Prompt生成 ===")
-        
+
         try:
             system_prompt, user_prompt = get_predict_post_stats_prompt(
                 persona, follower_count, post_content, history_posts
             )
-            
+
             print(f"\n系统Prompt:")
             print(system_prompt)
             print(f"\n用户Prompt:")
             print(user_prompt)
-            
+
             return system_prompt, user_prompt
-            
+
         except Exception as e:
             print(f"Prompt生成失败: {str(e)}")
             return None, None
-    
+
     def run_comprehensive_test(self):
         """运行综合测试"""
         print("开始帖子统计数据预测综合测试...")
         print(f"使用本地人设模板: {list(LOCAL_PERSONA_TEMPLATES.keys())}")
-        
+
         # 测试用例1: STAR明星
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("测试用例1: STAR明星")
         template = LOCAL_PERSONA_TEMPLATES["STAR"]
         self.test_predict_post_stats(
@@ -194,9 +193,9 @@ class StatsPredictionTester:
             post_content="新电影即将上映，希望大家多多支持！这次的角色很有挑战性，期待与大家分享更多幕后故事",
             history_posts=["宣传了新专辑", "分享了拍摄花絮", "时尚穿搭分享"]
         )
-        
+
         # 测试用例2: 美妆博主
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("测试用例2: 美妆博主")
         template = LOCAL_PERSONA_TEMPLATES["BEAUTY"]
         self.test_predict_post_stats(
@@ -205,9 +204,9 @@ class StatsPredictionTester:
             post_content="今天试了新买的口红，颜色超级好看！大家觉得怎么样？",
             history_posts=["昨天分享了护肤心得", "前天推荐了面膜", "妆容教程分享"]
         )
-        
+
         # 测试用例3: 健身达人
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("测试用例3: 健身达人")
         template = LOCAL_PERSONA_TEMPLATES["FITNESS"]
         self.test_predict_post_stats(
@@ -216,9 +215,9 @@ class StatsPredictionTester:
             post_content="坚持健身3个月了，体重减了15斤！感谢大家的鼓励和支持",
             history_posts=["分享了健身计划", "推荐了健身器材", "健康饮食建议"]
         )
-        
+
         # 测试用例4: 科技博主
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("测试用例4: 科技博主")
         template = LOCAL_PERSONA_TEMPLATES["TECH"]
         self.test_predict_post_stats(
@@ -227,9 +226,9 @@ class StatsPredictionTester:
             post_content="我觉得现在的手机价格太贵了，性价比越来越低，大家怎么看？",
             history_posts=["评测了新手机", "分析了市场趋势", "技术解析分享"]
         )
-        
+
         # 测试用例5: 生活博主
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("测试用例5: 生活博主")
         template = LOCAL_PERSONA_TEMPLATES["LIFESTYLE"]
         self.test_predict_post_stats(
@@ -238,9 +237,9 @@ class StatsPredictionTester:
             post_content="今天天气真好，在公园里散步，心情特别舒畅",
             history_posts=["分享了美食", "推荐了旅游景点", "家居装饰心得"]
         )
-        
+
         # 测试用例6: 美食博主
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("测试用例6: 美食博主")
         template = LOCAL_PERSONA_TEMPLATES["FOOD"]
         self.test_predict_post_stats(
@@ -249,14 +248,14 @@ class StatsPredictionTester:
             post_content="今天做了红烧肉，肥而不腻，入口即化！有想学的吗？",
             history_posts=["分享了糖醋排骨", "推荐了厨房用品", "食材选购技巧"]
         )
-    
+
     def save_test_results(self, filename=None):
         """保存测试结果到JSON文件"""
         if not filename:
             filename = "stats_test_results.json"
-        
+
         filepath = os.path.join(os.path.dirname(__file__), filename)
-        
+
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(self.test_results, f, ensure_ascii=False, indent=2)
@@ -265,23 +264,23 @@ class StatsPredictionTester:
         except Exception as e:
             print(f"保存测试结果失败: {str(e)}")
             return None
-    
+
     def analyze_results(self):
         """分析测试结果"""
         if not self.test_results:
             print("没有测试结果可分析")
             return
-        
+
         print(f"\n=== 测试结果分析 ===")
         print(f"总测试用例数: {len(self.test_results)}")
-        
+
         # 分析粉丝数与评论量的关系
         print(f"\n粉丝数与评论量关系分析:")
         for result in self.test_results:
             follower_count = result['follower_count']
             comment_count = result['prediction'].get('pred_comment_count', 0)
             print(f"粉丝数: {follower_count:,} -> 评论量: {comment_count}")
-        
+
         # 分析不同人设的表现
         print(f"\n不同人设表现分析:")
         personas = {}
@@ -290,7 +289,7 @@ class StatsPredictionTester:
             if persona not in personas:
                 personas[persona] = []
             personas[persona].append(result['prediction'].get('pred_comment_count', 0))
-        
+
         for persona, comment_counts in personas.items():
             avg_comments = sum(comment_counts) / len(comment_counts)
             print(f"{persona}: 平均评论量 {avg_comments:.1f}")
@@ -299,25 +298,25 @@ class StatsPredictionTester:
 def main():
     """主函数"""
     print("帖子统计数据预测测试工具")
-    print("="*50)
-    
+    print("=" * 50)
+
     tester = StatsPredictionTester()
-    
+
     try:
         # 显示本地模板信息
         tester.show_local_templates()
-        
+
         # 运行综合测试
         tester.run_comprehensive_test()
-        
+
         # 分析结果
         tester.analyze_results()
-        
+
         # 保存结果
         tester.save_test_results()
-        
+
         print(f"\n测试完成！")
-        
+
     except KeyboardInterrupt:
         print(f"\n测试被用户中断")
     except Exception as e:

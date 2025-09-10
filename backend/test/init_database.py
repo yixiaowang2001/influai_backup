@@ -23,22 +23,24 @@ os.environ["MYSQL_CHARSET"] = "utf8mb4"
 
 from backend.database.init_db import init_database
 
+
 def main():
     """初始化数据库"""
     print("开始初始化数据库...")
-    
+
     try:
         # 初始化数据库（不指定模板名称，只初始化用户模板）
         success = init_database()
-        
+
         if success:
             print("数据库初始化成功！")
             print("用户模板数据已加载到数据库中")
         else:
             print("数据库初始化失败！")
-            
+
     except Exception as e:
         print(f"初始化过程中发生错误: {e}")
+
 
 if __name__ == "__main__":
     main()
