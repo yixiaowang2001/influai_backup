@@ -8,11 +8,24 @@ let userPosts = [];
 // 默认用户信息 - 将从后端获取
 let currentUser = null;
 
+// 应用状态枚举
+const APP_STATES = {
+  USER_SELECTION: 'user_selection',
+  TEMPLATE_SELECTION: 'template_selection',
+  MAIN_APP: 'main_app'
+};
+
 // 当前页面状态
+let currentAppState = APP_STATES.USER_SELECTION;
 let currentView = 'timeline'; // 'timeline' 或 'detail'
 let currentPost = null;
 let isCommentInputVisible = false; // 评论输入框是否显示
 let currentSortOrder = 'time'; // 'time' 或 'likes'
+
+// 用户管理相关状态
+let availableUsers = [];
+let availableTemplates = [];
+let selectedUser = null;
 
 // WebSocket连接
 let websocket = null;
@@ -37,7 +50,7 @@ async function apiCall(endpoint, options = {}) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('API调用失败:', error);
+    console.error('API调用失败:', endpoint, error);
     throw error;
   }
 }
@@ -48,14 +61,9 @@ async function getCurrentUser() {
     const response = await apiCall('/user/current');
     return response.data;
   } catch (error) {
-    // 如果没有当前用户，尝试获取第一个用户并设置为当前用户
-    console.log('没有当前用户，尝试设置默认用户...');
-    const users = await getAllUsers();
-    if (users.length > 0) {
-      await setCurrentUser(users[0].humanUserId);
-      return users[0];
-    }
-    throw new Error('无法获取用户信息');
+    // 如果没有当前用户，返回null而不是抛出错误
+    console.log('没有当前用户，需要进行用户选择');
+    return null;
   }
 }
 
@@ -120,10 +128,34 @@ async function likeComment(commentId) {
   return response.data;
 }
 
+// 获取用户模板列表
+async function getUserTemplates() {
+  const response = await apiCall('/user-templates');
+  return response.data;
+}
+
+// 创建新用户
+async function createNewUser(username, templateId, avatarPath = '') {
+  const response = await apiCall('/user/create', {
+    method: 'POST',
+    body: JSON.stringify({
+      username: username,
+      user_template_id: templateId,
+      avatar_path: avatarPath
+    })
+  });
+  return response.data;
+}
+
 // ===== WebSocket函数 =====
 
 // 初始化WebSocket连接
 function initWebSocket() {
+  if (websocket && websocket.readyState === WebSocket.OPEN) {
+    console.log('WebSocket已经连接，跳过重复连接');
+    return;
+  }
+  
   if (websocket) {
     websocket.close();
   }
@@ -131,7 +163,7 @@ function initWebSocket() {
   websocket = new WebSocket(WS_URL);
   
   websocket.onopen = function(event) {
-    console.log('WebSocket连接已建立');
+    // WebSocket连接已建立
   };
   
   websocket.onmessage = function(event) {
@@ -144,9 +176,11 @@ function initWebSocket() {
   };
   
   websocket.onclose = function(event) {
-    console.log('WebSocket连接已关闭');
-    // 5秒后尝试重连
-    setTimeout(initWebSocket, 5000);
+    websocket = null; // 清空websocket引用
+    // 只有在主应用状态下才重连
+    if (currentAppState === APP_STATES.MAIN_APP) {
+      setTimeout(initWebSocket, 3000);
+    }
   };
   
   websocket.onerror = function(error) {
@@ -182,9 +216,14 @@ function handleWebSocketMessage(message) {
       updateCommentLikes(message.data.commentId, message.data.likes, message.data.isLiked);
       break;
       
-    case 'post_comments_update':
-      // 帖子评论数更新
-      updatePostCommentsCount(message.data.postId, message.data.commentsCount, message.data.likes);
+    case 'new_comment_push':
+      // AI评论推送（每3-5秒一条）
+      handleAICommentPush(message.data);
+      break;
+      
+    case 'comment_push_complete':
+      // 评论推送完成通知
+      handleCommentPushComplete(message.data);
       break;
   }
 }
@@ -206,21 +245,43 @@ function updatePostLikes(postId, likes, isLiked) {
   }
 }
 
-// 更新帖子评论数
-function updatePostCommentsCount(postId, commentsCount, likes) {
-  const post = userPosts.find(p => p.id === postId);
-  if (post) {
-    post.commentsCount = commentsCount;
-    if (likes !== undefined) {
-      post.likes = likes;
+// 处理AI评论推送
+function handleAICommentPush(data) {
+  // 如果在详情页且是当前帖子的评论，直接添加评论到界面
+  if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
+    
+    // 直接添加评论到当前帖子的评论列表
+    if (!currentPost.comments) {
+      currentPost.comments = [];
     }
+    currentPost.comments.push(data.comment);
+    
+    // 重新渲染详情页
+    renderPostDetail(currentPost);
+  }
+  
+  // 更新帖子的评论数
+  const post = userPosts.find(p => p.id === data.postId);
+  if (post) {
+    // 评论数加1
+    post.commentsCount = (post.commentsCount || 0) + 1;
     
     if (currentView === 'timeline') {
       renderPosts(userPosts);
-    } else if (currentView === 'detail' && currentPost && currentPost.id === postId) {
-      // 重新获取评论列表
-      loadCommentsForCurrentPost();
     }
+  }
+}
+
+// 处理评论推送完成通知
+function handleCommentPushComplete(data) {
+  console.log('评论推送完成:', data);
+  
+  // 可以在这里添加用户提示，比如显示"该帖子的所有评论已推送完毕"
+  // 暂时只在控制台输出，后续可以添加UI提示
+  
+  // 如果在详情页，确保评论列表是最新的
+  if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
+    loadCommentsForCurrentPost();
   }
 }
 
@@ -309,21 +370,43 @@ async function initializeApp() {
     // 显示加载状态
     showLoadingState();
     
-    // 初始化用户
-    currentUser = await getCurrentUser();
-    console.log('当前用户:', currentUser);
+    // 并行获取所有初始化数据
+    const [users, templates, existingUser] = await Promise.all([
+      getAllUsers(),
+      getUserTemplates(), 
+      getCurrentUser()
+    ]);
     
-    // 加载帖子列表
-    await loadPosts();
+    availableUsers = users;
+    availableTemplates = templates;
     
-    // 初始化WebSocket连接
-    initWebSocket();
+    if (existingUser) {
+      // 如果已有当前用户，直接进入主应用
+      currentUser = existingUser;
+      currentAppState = APP_STATES.MAIN_APP;
+      currentView = 'timeline';
+      togglePublishArea(true);
+      
+      // 加载帖子和初始化WebSocket
+      await loadPosts();
+      initWebSocket();
+      
+      renderCurrentState();
+    } else {
+      // 没有当前用户，进入用户选择状态
+      currentAppState = APP_STATES.USER_SELECTION;
+      // 先渲染一次（可能显示加载状态）
+      renderCurrentState();
+      // 确保数据加载完成后再次渲染
+      if (availableUsers.length > 0) {
+        renderCurrentState();
+      }
+      togglePublishArea(false);
+    }
     
-    // 隐藏加载状态
-    hideLoadingState();
   } catch (error) {
     console.error('应用初始化失败:', error);
-    showErrorState('应用初始化失败，请刷新页面重试');
+    showErrorState(`应用初始化失败: ${error.message}`);
   }
 }
 
@@ -468,7 +551,7 @@ function renderPostDetailWithoutComments(post) {
         
         <!-- 评论统计和筛选 -->
         <div class="px-4 py-3 bg-gray-50 flex justify-between items-center text-sm">
-          <span class="text-gray-600">正在加载评论...</span>
+          <span class="text-gray-600"></span>
           <div class="relative">
             <button 
               id="sortDropdown" 
@@ -498,9 +581,7 @@ function renderPostDetailWithoutComments(post) {
       
       <!-- 评论列表占位 -->
       <div class="comments-list">
-        <div class="flex items-center justify-center py-8">
-          <div class="text-gray-500">正在加载评论...</div>
-        </div>
+        <!-- 空白区域，等待评论加载或推送 -->
       </div>
     </div>
   `;
@@ -633,6 +714,11 @@ async function viewPostDetail(postId) {
     currentPost = post;
     togglePublishArea(false); // 隐藏发布框
     
+    // 确保WebSocket连接正常
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+      initWebSocket();
+    }
+    
     // 显示帖子详情，但先不显示评论
     renderPostDetailWithoutComments(post);
     
@@ -661,6 +747,12 @@ function backToTimeline() {
   currentPost = null;
   hideCommentInput(); // 确保隐藏评论输入框
   togglePublishArea(true); // 显示发布框
+  
+  // 确保WebSocket连接正常
+  if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+    initWebSocket();
+  }
+  
   renderPosts(userPosts);
 }
 
@@ -856,5 +948,211 @@ async function handleCommentLike(commentId) {
   } catch (error) {
     console.error('评论点赞失败:', error);
     showErrorMessage('评论点赞失败，请重试');
+  }
+}
+
+// ===== 新增页面渲染函数 =====
+
+// 主渲染函数
+function renderCurrentState() {
+  switch (currentAppState) {
+    case APP_STATES.USER_SELECTION:
+      renderUserSelectionPage();
+      break;
+    case APP_STATES.TEMPLATE_SELECTION:
+      renderTemplateSelectionPage();
+      break;
+    case APP_STATES.MAIN_APP:
+      if (currentView === 'timeline') {
+        renderPosts(userPosts);
+      } else if (currentView === 'detail' && currentPost) {
+        renderPostDetail(currentPost);
+      }
+      break;
+  }
+}
+
+// 渲染用户选择页面
+function renderUserSelectionPage() {
+  const postsContainer = document.getElementById('postsContainer');
+  
+  // 如果数据还没加载完成，显示加载状态
+  if (!availableUsers || availableUsers.length === 0) {
+    postsContainer.innerHTML = `
+      <div class="user-selection-page">
+        <div class="flex items-center justify-center py-8">
+          <div class="text-gray-500">正在加载用户列表...</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  const content = `
+    <div class="user-selection-page">
+      <div class="existing-users-section">
+        <h2 class="section-title">选择用户</h2>
+        <div class="user-grid">
+          ${availableUsers.map(user => `
+            <button class="user-button" onclick="selectExistingUser(${user.humanUserId})">
+              ${user.humanUsername}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+      
+      <div class="create-user-section">
+        <h2 class="section-title">创建新用户</h2>
+        <div class="create-user-form">
+          <input 
+            type="text" 
+            id="usernameInput" 
+            class="user-input" 
+            placeholder="输入用户名"
+            maxlength="50"
+          >
+          <button id="createUserBtn" class="create-button" disabled onclick="validateUsername()">
+            创建
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  postsContainer.innerHTML = content;
+  setupUsernameValidation();
+}
+
+// 渲染模板选择页面
+function renderTemplateSelectionPage() {
+  const postsContainer = document.getElementById('postsContainer');
+  
+  const content = `
+    <div class="template-selection-page">
+      <div class="template-grid">
+        ${availableTemplates.map(template => `
+          <div class="template-card" onclick="selectTemplate(${template.id})">
+            <h3 class="template-name">${template.name}</h3>
+            <div class="template-description">
+              ${template.persona.substring(0, 200)}...
+            </div>
+            <button class="template-select-button" onclick="event.stopPropagation(); selectTemplate(${template.id})">
+              选择此模板
+            </button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  
+  postsContainer.innerHTML = content;
+}
+
+// 设置用户名验证
+function setupUsernameValidation() {
+  const usernameInput = document.getElementById('usernameInput');
+  const createBtn = document.getElementById('createUserBtn');
+  
+  if (usernameInput && createBtn) {
+    usernameInput.addEventListener('input', () => {
+      const username = usernameInput.value.trim();
+      createBtn.disabled = username.length === 0 || username.length > 50;
+    });
+    
+    usernameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !createBtn.disabled) {
+        validateUsername();
+      }
+    });
+  }
+}
+
+// 选择现有用户
+async function selectExistingUser(userId) {
+  try {
+    selectedUser = availableUsers.find(u => u.humanUserId === userId);
+    
+    if (!selectedUser) {
+      throw new Error('用户不存在');
+    }
+    
+    // 直接设置为当前用户并进入主应用
+    await setCurrentUser(selectedUser.humanUserId);
+    currentUser = selectedUser;
+    
+    // 进入主应用
+    currentAppState = APP_STATES.MAIN_APP;
+    currentView = 'timeline';
+    togglePublishArea(true);
+    
+    // 加载帖子和初始化WebSocket
+    await loadPosts();
+    initWebSocket();
+    
+    renderCurrentState();
+    showSuccessMessage(`欢迎回来，${selectedUser.humanUsername}！`);
+    
+  } catch (error) {
+    console.error('选择用户失败:', error);
+    showErrorMessage('选择用户失败，请重试');
+  }
+}
+
+// 验证用户名并进入模板选择
+async function validateUsername() {
+  const usernameInput = document.getElementById('usernameInput');
+  const username = usernameInput.value.trim();
+  
+  if (username.length === 0 || username.length > 50) {
+    showErrorMessage('用户名长度必须在1-50字符之间');
+    return;
+  }
+  
+  // 检查用户名是否已存在
+  const existingUser = availableUsers.find(u => u.humanUsername === username);
+  if (existingUser) {
+    showErrorMessage('用户名已存在，请选择其他名称');
+    return;
+  }
+  
+  // 保存用户名，进入模板选择
+  selectedUser = { username: username };
+  currentAppState = APP_STATES.TEMPLATE_SELECTION;
+  renderCurrentState();
+}
+
+// 选择模板并完成设置
+async function selectTemplate(templateId) {
+  try {
+    let finalUser;
+    
+    if (selectedUser.humanUserId) {
+      // 现有用户，直接设置
+      finalUser = selectedUser;
+    } else {
+      // 新用户，先创建
+      finalUser = await createNewUser(selectedUser.username, templateId);
+      console.log('用户创建成功:', finalUser);
+    }
+    
+    // 设置为当前用户
+    await setCurrentUser(finalUser.humanUserId);
+    currentUser = finalUser;
+    
+    // 进入主应用
+    currentAppState = APP_STATES.MAIN_APP;
+    currentView = 'timeline';
+    togglePublishArea(true);
+    
+    // 加载帖子和初始化WebSocket
+    await loadPosts();
+    initWebSocket();
+    
+    renderCurrentState();
+    showSuccessMessage('用户设置完成！');
+    
+  } catch (error) {
+    console.error('设置用户失败:', error);
+    showErrorMessage('设置用户失败，请重试');
   }
 }

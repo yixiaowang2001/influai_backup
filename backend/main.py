@@ -102,23 +102,27 @@ class CreateHumanUserRequest(BaseModel):
 
 async def create_database_if_not_exists():
     """如果数据库不存在，则创建数据库"""
-    try:
-        from sqlalchemy import create_engine, text
-        from sqlalchemy.exc import OperationalError
-        
-        # 连接到MySQL服务器（不指定数据库）
-        mysql_url = "mysql+pymysql://root:influai@localhost:3306"
-        engine = create_engine(mysql_url)
-        
-        with engine.connect() as conn:
-            # 尝试创建数据库
-            conn.execute(text("CREATE DATABASE IF NOT EXISTS influai CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
-            conn.commit()
-            logger.info("MySQL数据库 'influai' 创建成功或已存在")
+    import os
+    if os.environ.get("DB_TYPE") == "mysql":
+        try:
+            from sqlalchemy import create_engine, text
+            from sqlalchemy.exc import OperationalError
             
-    except Exception as e:
-        logger.error(f"创建MySQL数据库失败: {e}")
-        raise
+            # 连接到MySQL服务器（不指定数据库）
+            mysql_url = f"mysql+pymysql://{os.environ.get('MYSQL_USER')}:{os.environ.get('MYSQL_PASSWORD')}@{os.environ.get('MYSQL_HOST')}:{os.environ.get('MYSQL_PORT')}"
+            engine = create_engine(mysql_url)
+            
+            with engine.connect() as conn:
+                # 尝试创建数据库
+                conn.execute(text(f"CREATE DATABASE IF NOT EXISTS {os.environ.get('MYSQL_DATABASE')} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
+                conn.commit()
+                logger.info(f"MySQL数据库 '{os.environ.get('MYSQL_DATABASE')}' 创建成功或已存在")
+                
+        except Exception as e:
+            logger.error(f"创建MySQL数据库失败: {e}")
+            raise
+    else:
+        logger.info("使用SQLite数据库，无需预创建数据库")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -127,15 +131,17 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("InfluAI Backend API 启动中...")
         
-        # 设置环境变量，确保MySQL连接正常
+        # 设置环境变量，如果未设置则使用MySQL作为默认
         import os
-        os.environ["DB_TYPE"] = "mysql"
-        os.environ["MYSQL_HOST"] = "localhost"
-        os.environ["MYSQL_PORT"] = "3306"
-        os.environ["MYSQL_USER"] = "root"
-        os.environ["MYSQL_PASSWORD"] = "influai"
-        os.environ["MYSQL_DATABASE"] = "influai"
-        os.environ["MYSQL_CHARSET"] = "utf8mb4"
+        if "DB_TYPE" not in os.environ:
+            os.environ["DB_TYPE"] = "mysql"
+        if os.environ.get("DB_TYPE") == "mysql":
+            os.environ.setdefault("MYSQL_HOST", "localhost")
+            os.environ.setdefault("MYSQL_PORT", "3306")
+            os.environ.setdefault("MYSQL_USER", "root")
+            os.environ.setdefault("MYSQL_PASSWORD", "influai")
+            os.environ.setdefault("MYSQL_DATABASE", "influai")
+            os.environ.setdefault("MYSQL_CHARSET", "utf8mb4")
         
         # 先尝试创建数据库（如果不存在）
         await create_database_if_not_exists()
@@ -210,11 +216,18 @@ class ConnectionManager:
         await websocket.send_text(message)
 
     async def broadcast(self, message: str):
-        for connection in self.active_connections:
+        # 使用副本遍历，避免在遍历时修改列表
+        connections_to_remove = []
+        for connection in self.active_connections[:]:
             try:
                 await connection.send_text(message)
             except:
-                # 如果连接断开，从列表中移除
+                # 标记需要移除的连接
+                connections_to_remove.append(connection)
+        
+        # 移除断开的连接
+        for connection in connections_to_remove:
+            if connection in self.active_connections:
                 self.active_connections.remove(connection)
 
 manager = ConnectionManager()

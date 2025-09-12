@@ -46,7 +46,7 @@ class DatabaseConfig:
     @classmethod
     def get_mysql_password(cls) -> str:
         """获取MySQL密码"""
-        return os.getenv("MYSQL_PASSWORD", "")
+        return os.getenv("MYSQL_PASSWORD", "influai")
     
     @classmethod
     def get_mysql_database(cls) -> str:
