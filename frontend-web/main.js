@@ -147,6 +147,9 @@ async function createNewUser(username, templateId, avatarPath = '') {
   return response.data;
 }
 
+// 注意：fetchPostsCommentsStats 函数已移除
+// 因为后端现在直接在帖子列表API中返回正确的评论数
+
 // ===== WebSocket函数 =====
 
 // 初始化WebSocket连接
@@ -247,8 +250,11 @@ function updatePostLikes(postId, likes, isLiked) {
 
 // 处理AI评论推送
 function handleAICommentPush(data) {
+  console.log('[DEBUG] handleAICommentPush 收到推送:', data.postId, '当前视图:', currentView);
+  
   // 如果在详情页且是当前帖子的评论，直接添加评论到界面
   if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
+    console.log('[DEBUG] 在详情页，添加评论到详情页');
     
     // 直接添加评论到当前帖子的评论列表
     if (!currentPost.comments) {
@@ -263,12 +269,17 @@ function handleAICommentPush(data) {
   // 更新帖子的评论数
   const post = userPosts.find(p => p.id === data.postId);
   if (post) {
+    console.log('[DEBUG] 找到帖子，当前评论数:', post.commentsCount, '即将加1');
     // 评论数加1
     post.commentsCount = (post.commentsCount || 0) + 1;
+    console.log('[DEBUG] 更新后评论数:', post.commentsCount);
     
     if (currentView === 'timeline') {
+      console.log('[DEBUG] 在时间线视图，重新渲染帖子列表');
       renderPosts(userPosts);
     }
+  } else {
+    console.log('[DEBUG] 未找到对应帖子:', data.postId);
   }
 }
 
@@ -367,20 +378,26 @@ window.addEventListener('DOMContentLoaded', async () => {
 // 初始化应用
 async function initializeApp() {
   try {
+    console.log('[DEBUG] initializeApp 开始执行');
+    
     // 显示加载状态
+    console.log('[DEBUG] 显示加载状态');
     showLoadingState();
     
     // 并行获取所有初始化数据
+    console.log('[DEBUG] 开始并行获取初始化数据');
     const [users, templates, existingUser] = await Promise.all([
       getAllUsers(),
       getUserTemplates(), 
       getCurrentUser()
     ]);
+    console.log('[DEBUG] 初始化数据获取完成', { users: users?.length, templates: templates?.length, existingUser: !!existingUser });
     
     availableUsers = users;
     availableTemplates = templates;
     
     if (existingUser) {
+      console.log('[DEBUG] 有现有用户，进入主应用流程');
       // 如果已有当前用户，直接进入主应用
       currentUser = existingUser;
       currentAppState = APP_STATES.MAIN_APP;
@@ -388,11 +405,16 @@ async function initializeApp() {
       togglePublishArea(true);
       
       // 加载帖子和初始化WebSocket
+      console.log('[DEBUG] 开始加载帖子');
       await loadPosts();
+      console.log('[DEBUG] 帖子加载完成，初始化WebSocket');
       initWebSocket();
       
+      console.log('[DEBUG] 调用 renderCurrentState()');
       renderCurrentState();
+      console.log('[DEBUG] renderCurrentState() 完成');
     } else {
+      console.log('[DEBUG] 无现有用户，进入用户选择流程');
       // 没有当前用户，进入用户选择状态
       currentAppState = APP_STATES.USER_SELECTION;
       // 先渲染一次（可能显示加载状态）
@@ -404,8 +426,9 @@ async function initializeApp() {
       togglePublishArea(false);
     }
     
+    console.log('[DEBUG] initializeApp 执行完成');
   } catch (error) {
-    console.error('应用初始化失败:', error);
+dui    console.error('[DEBUG] 应用初始化失败:', error);
     showErrorState(`应用初始化失败: ${error.message}`);
   }
 }
@@ -413,13 +436,27 @@ async function initializeApp() {
 // 加载帖子列表
 async function loadPosts() {
   try {
+    console.log('[DEBUG] loadPosts 开始执行');
+    
+    // 直接加载帖子数据（现在包含正确的评论数）
+    console.log('[DEBUG] 调用 fetchPosts()');
     userPosts = await fetchPosts();
-    renderPosts(userPosts);
+    console.log('[DEBUG] fetchPosts() 完成，获得帖子数量:', userPosts?.length);
+    
+    console.log('[DEBUG] 调用 renderPosts()');
+    renderPosts(userPosts);  // 立即显示帖子，包含正确的评论数
+    console.log('[DEBUG] renderPosts() 完成');
+    
+    // 注意：新发布的帖子的评论会通过WebSocket实时推送更新
+    console.log('[DEBUG] loadPosts 执行完成');
   } catch (error) {
-    console.error('加载帖子失败:', error);
+    console.error('[DEBUG] 加载帖子失败:', error);
     showErrorMessage('加载帖子失败');
   }
 }
+
+// 注意：loadCommentsStatsAsync 函数已移除
+// 因为后端现在直接在帖子列表API中返回正确的评论数
 
 // 显示加载状态
 function showLoadingState() {
@@ -758,9 +795,13 @@ function backToTimeline() {
 
 // 渲染帖子列表
 function renderPosts(posts) {
-  const postsContainer = document.getElementById('postsContainer');
+  console.log('[DEBUG] renderPosts 开始执行，帖子数量:', posts?.length);
   
-  if (posts.length === 0) {
+  const postsContainer = document.getElementById('postsContainer');
+  console.log('[DEBUG] 获取 postsContainer 元素:', !!postsContainer);
+  
+  if (!posts || posts.length === 0) {
+    console.log('[DEBUG] 无帖子，显示空状态');
     postsContainer.innerHTML = `
       <div class="flex items-center justify-center py-8">
         <div class="text-gray-500">暂无帖子</div>
@@ -793,7 +834,9 @@ function renderPosts(posts) {
     </div>
   `).join('');
   
+  console.log('[DEBUG] 设置 postsContainer.innerHTML，HTML长度:', htmlContent.length);
   postsContainer.innerHTML = htmlContent;
+  console.log('[DEBUG] renderPosts 执行完成');
 }
 
 // 渲染帖子详情页面
@@ -955,21 +998,30 @@ async function handleCommentLike(commentId) {
 
 // 主渲染函数
 function renderCurrentState() {
+  console.log('[DEBUG] renderCurrentState 开始执行，当前状态:', currentAppState, '当前视图:', currentView);
+  
   switch (currentAppState) {
     case APP_STATES.USER_SELECTION:
+      console.log('[DEBUG] 渲染用户选择页面');
       renderUserSelectionPage();
       break;
     case APP_STATES.TEMPLATE_SELECTION:
+      console.log('[DEBUG] 渲染模板选择页面');
       renderTemplateSelectionPage();
       break;
     case APP_STATES.MAIN_APP:
+      console.log('[DEBUG] 渲染主应用页面');
       if (currentView === 'timeline') {
+        console.log('[DEBUG] 渲染时间线，帖子数量:', userPosts?.length);
         renderPosts(userPosts);
       } else if (currentView === 'detail' && currentPost) {
+        console.log('[DEBUG] 渲染帖子详情');
         renderPostDetail(currentPost);
       }
       break;
   }
+  
+  console.log('[DEBUG] renderCurrentState 执行完成');
 }
 
 // 渲染用户选择页面

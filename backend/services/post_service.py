@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Union
 
-from tqdm import tqdm
+# from tqdm import tqdm  # 移除tqdm避免I/O错误
 
 from backend.ai_module import (
     predict_post_stats,
@@ -318,7 +318,7 @@ class PostService:
         logger.info("帖子服务已初始化")
         logger.info(f"开始生成{self.pred_comment_count}条评论...")
         comment_nums_by_attitude = self.distribute_comment_nums(total=self.pred_comment_count)
-        for att in tqdm(Attitude.create_dict().keys()):
+        for att in Attitude.create_dict().keys():
             comment_count = comment_nums_by_attitude[str(att)]
             expanded_comments = self.expand_lv1_comments_by_attitude(att, comment_count)
             for comment in expanded_comments:
@@ -340,7 +340,7 @@ class PostService:
         logger.info("帖子服务已初始化")
         logger.info(f"开始为帖子 {post_id} 生成{self.pred_comment_count}条评论...")
         comment_nums_by_attitude = self.distribute_comment_nums(total=self.pred_comment_count)
-        for att in tqdm(Attitude.create_dict().keys()):
+        for att in Attitude.create_dict().keys():
             comment_count = comment_nums_by_attitude[str(att)]
             expanded_comments = self.expand_lv1_comments_by_attitude(att, comment_count)
             for comment in expanded_comments:

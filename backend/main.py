@@ -237,25 +237,29 @@ class CommentPushManager:
     def __init__(self):
         self.push_tasks = {}  # 存储每个帖子的推送任务
     
-    async def start_comment_push_task(self, post_id: int, db: Session):
+    async def start_comment_push_task(self, post_id: int):
         """为指定帖子启动评论推送任务"""
         if post_id in self.push_tasks:
             logger.warning(f"帖子 {post_id} 的推送任务已存在")
             return
         
-        # 创建推送任务
-        task = asyncio.create_task(self._push_comments_for_post(post_id, db))
+        # 创建推送任务（不传递db会话，避免会话冲突）
+        task = asyncio.create_task(self._push_comments_for_post(post_id))
         self.push_tasks[post_id] = task
         
         logger.info(f"为帖子 {post_id} 启动评论推送任务")
     
-    async def _push_comments_for_post(self, post_id: int, db: Session):
+    async def _push_comments_for_post(self, post_id: int):
         """为指定帖子推送评论的核心逻辑"""
+        # 在推送任务中创建新的数据库会话，避免会话冲突
+        from backend.database.database import get_db_session
+        db = get_db_session()
+        
         try:
             logger.info(f"开始为帖子 {post_id} 推送评论...")
             
-            # 等待一段时间让评论生成完成
-            await asyncio.sleep(2)
+            # 减少初始等待时间，从2秒改为0.5秒
+            await asyncio.sleep(0.5)
             
             while True:
                 # 获取该帖子的所有评论
@@ -316,12 +320,11 @@ class CommentPushManager:
                 comment_to_push.send_at = datetime.now()
                 db.commit()
                 
-                # 在终端打印推送信息
-                print(f" 推送评论到前端 - 帖子ID: {post_id}, 评论ID: {comment_to_push.comment_id}")
-                print(f"   评论内容: {comment_to_push.comment_content[:50]}...")
-                print(f"   评论者: {author_info.get('username', '未知')}")
-                print(f"   推送时间: {datetime.now().strftime('%H:%M:%S')}")
-                print("-" * 80)
+                # 记录推送信息到日志
+                logger.info(f"推送评论到前端 - 帖子ID: {post_id}, 评论ID: {comment_to_push.comment_id}")
+                logger.info(f"评论内容: {comment_to_push.comment_content[:50]}...")
+                logger.info(f"评论者: {author_info.get('username', '未知')}")
+                logger.info(f"推送时间: {datetime.now().strftime('%H:%M:%S')}")
                 
                 # 随机等待3-5秒
                 wait_time = random.uniform(3, 5)
@@ -337,13 +340,13 @@ class CommentPushManager:
             }
             await manager.broadcast(json.dumps(completion_message))
             
-            print(f" 帖子 {post_id} 的评论推送任务完成")
-            print("=" * 80)
+            logger.info(f"帖子 {post_id} 的评论推送任务完成")
             
         except Exception as e:
             logger.error(f"推送评论失败: {e}")
-            print(f" 帖子 {post_id} 的评论推送失败: {e}")
         finally:
+            # 确保数据库会话被正确关闭
+            db.close()
             # 清理任务
             if post_id in self.push_tasks:
                 del self.push_tasks[post_id]
@@ -378,8 +381,12 @@ def format_timestamp(created_at: datetime) -> str:
         return f"{days}天前"
 
 
-async def generate_comments_for_post(post_id: int, human_user_id: int, db: Session):
+async def generate_comments_for_post(post_id: int, human_user_id: int):
     """为帖子生成评论"""
+    # 在异步任务中创建新的数据库会话，避免会话冲突
+    from backend.database.database import get_db_session
+    db = get_db_session()
+    
     try:
         logger.info(f"开始为帖子 {post_id} 生成评论，人类用户ID: {human_user_id}...")
         
@@ -434,19 +441,19 @@ async def generate_comments_for_post(post_id: int, human_user_id: int, db: Sessi
         db.commit()
         
         logger.info(f"帖子 {post_id} 的评论生成完成，共 {len(post_service.comments)} 条")
-        print(f" 帖子 {post_id} 的评论生成完成，共 {len(post_service.comments)} 条")
-        print(f"   点赞数预测: {stats['pred_like_count']}")
-        print(f"   评论数预测: {stats['pred_comment_count']}")
-        print(f"   新粉丝数预测: {stats['new_follower_count']}")
-        print("-" * 80)
+        logger.info(f"点赞数预测: {stats['pred_like_count']}")
+        logger.info(f"评论数预测: {stats['pred_comment_count']}")
+        logger.info(f"新粉丝数预测: {stats['new_follower_count']}")
         
         # 不再通过WebSocket广播评论数更新，由推送任务处理
         
     except Exception as e:
         logger.error(f"生成评论失败: {e}")
-        print(f" 帖子 {post_id} 的评论生成失败: {e}")
         import traceback
         logger.error(f"错误详情: {traceback.format_exc()}")
+    finally:
+        # 确保数据库会话被正确关闭
+        db.close()
 
 # 用户相关接口
 @app.get("/user/profile",
@@ -703,6 +710,11 @@ async def get_posts(db: Session = Depends(get_db)):
             if current_user:
                 is_liked = post.is_human_user_liked == 1
             
+            # 直接查询该帖子的评论数
+            comment_count = db.query(models.Comment).filter(
+                models.Comment.post_id == post.post_id
+            ).count()
+            
             post_data = {
                 "id": f"post_{post.post_id}",
                 "content": post.post_content,
@@ -714,7 +726,7 @@ async def get_posts(db: Session = Depends(get_db)):
                 "timestamp": format_timestamp(post.created_at),
                 "createdAt": post.created_at.isoformat(),
                 "likes": post.like_count,
-                "commentsCount": len(post.comments),
+                "commentsCount": comment_count,  # 直接返回实际的评论数
                 "isLiked": is_liked
             }
             post_list.append(post_data)
@@ -778,21 +790,18 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
         # 异步生成评论（不阻塞响应）
         import asyncio
         
-        # 创建后台任务生成评论
-        comment_generation_task = asyncio.create_task(generate_comments_for_post(created_post.post_id, current_user.user_id, db))
+        # 创建后台任务生成评论（不传递db会话，避免会话冲突）
+        comment_generation_task = asyncio.create_task(generate_comments_for_post(created_post.post_id, current_user.user_id))
         
-        # 创建后台任务推送评论
-        comment_push_task = asyncio.create_task(comment_push_manager.start_comment_push_task(created_post.post_id, db))
+        # 创建后台任务推送评论（不传递db会话，避免会话冲突）
+        comment_push_task = asyncio.create_task(comment_push_manager.start_comment_push_task(created_post.post_id))
         
-        # 在终端打印任务启动信息
-        print(f" 帖子发布成功！ID: {created_post.post_id}")
-        print(f"   内容: {created_post.post_content[:50]}...")
-        print(f"   作者: {current_user.username}")
-        print(f"   发布时间: {datetime.now().strftime('%H:%M:%S')}")
-        print(f"   后台任务已启动:")
-        print(f"     - 评论生成任务")
-        print(f"     - 评论推送任务")
-        print("=" * 80)
+        # 记录任务启动信息到日志
+        logger.info(f"帖子发布成功！ID: {created_post.post_id}")
+        logger.info(f"内容: {created_post.post_content[:50]}...")
+        logger.info(f"作者: {current_user.username}")
+        logger.info(f"发布时间: {datetime.now().strftime('%H:%M:%S')}")
+        logger.info(f"后台任务已启动: 评论生成任务, 评论推送任务")
         
         return create_response(data=post_response)
     except HTTPException:
@@ -1055,6 +1064,44 @@ async def like_comment(comment_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"点赞评论失败: {e}")
         raise HTTPException(status_code=500, detail="点赞评论失败")
+
+@app.post("/posts/comments-stats",
+          summary="批量获取帖子评论统计",
+          description="批量获取多个帖子的评论数量统计。用于异步加载评论数，避免阻塞主要的帖子列表查询。",
+          response_description="返回各个帖子的评论数统计",
+          tags=["评论管理"])
+async def get_posts_comments_stats(request: dict, db: Session = Depends(get_db)):
+    """批量获取帖子评论统计"""
+    try:
+        post_ids = request.get("post_ids", [])
+        if not post_ids:
+            return create_response(data={})
+        
+        stats = {}
+        for post_id in post_ids:
+            try:
+                # 从post_id中提取数字ID
+                numeric_id = int(post_id.replace("post_", ""))
+                
+                # 使用简单的COUNT查询，避免加载完整的关系数据
+                comment_count = db.query(models.Comment).filter(
+                    models.Comment.post_id == numeric_id
+                ).count()
+                
+                stats[post_id] = comment_count
+                
+            except ValueError:
+                # 跳过无效的post_id
+                stats[post_id] = 0
+            except Exception as e:
+                logger.warning(f"获取帖子 {post_id} 评论数失败: {e}")
+                stats[post_id] = 0
+        
+        return create_response(data=stats)
+        
+    except Exception as e:
+        logger.error(f"批量获取评论统计失败: {e}")
+        raise HTTPException(status_code=500, detail="获取评论统计失败")
 
 # WebSocket接口
 @app.websocket("/ws/updates")
