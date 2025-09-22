@@ -383,8 +383,8 @@ def test_prompt_generation():
     
     # 测试参数
     test_params = {
-        "post_content": "开篇先聊粉底液！对比YSL、Armani和DW：YSL轻薄适合干皮，Armani遮瑕强更控油，DW持妆最稳但妆效厚重。你们最常用哪一款？",
-        "parent_comment_content": "哇咧，追更博主的测评简直是我每天的任务，这篇文章真的让我的心又开始种草跳动！YSL和Armani完全是两种风格好吗，看着它们脑海里瞬间浮现自己初学化妆的样子……真的太感慨了！！必须再次表白博主爱死你啦！",
+        "post_content": "煞笔公司……不想干了，压力太大了。累死累活还不如一个臭写代码的",
+        "parent_comment_content": "压力大还来抱怨，普通上班族连喘口气都是奢侈，求求你别卖惨了行不行？",
         "parent_comment_attitude": "狂热",
         "is_human_user": False,
         "comment_count": 87,

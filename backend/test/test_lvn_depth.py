@@ -11,10 +11,10 @@ LVN深度评论生成测试工具
 创建时间：2025-01-27
 """
 
-import sys
-import os
 import json
-from typing import List, Dict, Optional, Tuple
+import os
+import sys
+from typing import List, Dict, Tuple
 
 # 添加项目路径到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,8 +33,7 @@ os.environ.update({
     "MYSQL_CHARSET": "utf8mb4"
 })
 
-from backend.models import Attitude
-from backend.database import crud, models
+from backend.database import crud
 from backend.ai_module.llm import chat
 from backend.ai_module.llm_utils import parse_json_response
 from backend.utils import get_logger
@@ -112,12 +111,12 @@ def get_depth_generation_prompt(
     
     if conversation_type == "双人来回对话":
         depth_desc = "深度较深，通常有3-7轮对话，每层衍生对话通常不会很多（1-3条）"
-        user_strategy = "用户A和用户B两个用户"
+        user_strategy = "核心对话围绕用户A和用户B两个用户展开，可能会有其他用户进行附和"
         attack_desc = "双方攻击性要强，形成激烈的争论"
     else:  # 多人参与对话
-        depth_desc = "深度较浅，通常有2-4轮对话，每层衍生对话会略多（3-8条）"
+        depth_desc = "深度较浅，通常有2-4轮对话，每层衍生对话会略多（5-8条）"
         user_strategy = "多个用户（用户A、用户B、用户C等）"
-        attack_desc = "各方态度多样，攻击性相对较弱"
+        attack_desc = "各方态度多样，攻击性相对较强"
     
     system_prompt = f"""你是一个专业的社交媒体深度对话生成助手。你的任务是模拟AI用户之间的深度对话，生成评论链。
 
@@ -137,7 +136,7 @@ def get_depth_generation_prompt(
 对话生成策略：
 - 支持方：对博主持{parent_comment_attitude}态度，支持上级评论
 - 质疑方：对博主持相反态度，质疑上级评论
-- 各方要围绕具体产品、博主能力、测评客观性等展开讨论
+- 对话本身要接近网络用语
 - 每轮对话都要有新的论据或反驳点
 - 对话要有层次感，从表面争论深入到本质分歧
 - 每层可以有多条评论，不限制每层只有一条评论
@@ -153,7 +152,7 @@ def get_depth_generation_prompt(
 重要提醒：
 - 生成深度对话，各方要有不同的观点和角度
 - 对话要有深度，每轮都要有新的观点或反驳
-- 围绕上级评论提到的产品（如YSL、Armani、DW）来展开讨论
+- 围绕上级评论提到的内容来展开讨论
 - 确保对话内容与上级评论内容高度相关
 - 对话要有逻辑递进，不能简单重复
 
@@ -375,7 +374,7 @@ def test_prompt_generation():
     
     # 测试参数
     test_params = {
-        "post_content": "开篇先聊粉底液！对比YSL、Armani和DW：YSL轻薄适合干皮，Armani遮瑕强更控油，DW持妆最稳但妆效厚重。你们最常用哪一款？",
+        "post_content": "煞笔公司……不想干了，压力太大了。累死累活还不如一个臭写代码的",
         "parent_comment_content": "哇咧，追更博主的测评简直是我每天的任务，这篇文章真的让我的心又开始种草跳动！YSL和Armani完全是两种风格好吗，看着它们脑海里瞬间浮现自己初学化妆的样子……真的太感慨了！！必须再次表白博主爱死你啦！",
         "parent_comment_attitude": "狂热",
         "is_human_user": False,
