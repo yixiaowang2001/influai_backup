@@ -261,7 +261,11 @@ class CommentPushManager:
             # 减少初始等待时间，从2秒改为0.5秒
             await asyncio.sleep(0.5)
             
-            while True:
+            # 增加最大等待时间和轮询计数，避免无限等待
+            max_wait_rounds = 300  # 最多等待5分钟 (300 * 1秒)
+            wait_rounds = 0
+            
+            while wait_rounds < max_wait_rounds:
                 # 获取该帖子的所有评论
                 comments = crud.get_comments_by_post(db, post_id)
                 
@@ -269,8 +273,15 @@ class CommentPushManager:
                 unprocessed_comments = [c for c in comments if not c.send_at]
                 
                 if not unprocessed_comments:
-                    logger.info(f"帖子 {post_id} 的所有评论已推送完毕")
-                    break
+                    # 如果还没有评论，等待一段时间再检查
+                    if not comments:
+                        logger.debug(f"帖子 {post_id} 暂无评论，等待AI生成中...")
+                        await asyncio.sleep(1)  # 等待1秒
+                        wait_rounds += 1
+                        continue
+                    else:
+                        logger.info(f"帖子 {post_id} 的所有评论已推送完毕")
+                        break
                 
                 # 随机选择一条未处理的评论进行推送
                 comment_to_push = random.choice(unprocessed_comments)
@@ -330,15 +341,27 @@ class CommentPushManager:
                 wait_time = random.uniform(3, 5)
                 await asyncio.sleep(wait_time)
             
-            # 推送完成后，发送完成通知
-            completion_message = {
-                "type": "comment_push_complete",
-                "data": {
-                    "postId": f"post_{post_id}",
-                    "message": "该帖子的所有评论已推送完毕"
+            # 检查是否因为超时退出循环
+            if wait_rounds >= max_wait_rounds:
+                logger.warning(f"帖子 {post_id} 评论推送任务超时，已等待{max_wait_rounds}秒")
+                timeout_message = {
+                    "type": "comment_push_timeout",
+                    "data": {
+                        "postId": f"post_{post_id}",
+                        "message": "评论推送任务超时，请检查AI评论生成状态"
+                    }
                 }
-            }
-            await manager.broadcast(json.dumps(completion_message))
+                await manager.broadcast(json.dumps(timeout_message))
+            else:
+                # 推送完成后，发送完成通知
+                completion_message = {
+                    "type": "comment_push_complete",
+                    "data": {
+                        "postId": f"post_{post_id}",
+                        "message": "该帖子的所有评论已推送完毕"
+                    }
+                }
+                await manager.broadcast(json.dumps(completion_message))
             
             logger.info(f"帖子 {post_id} 的评论推送任务完成")
             
@@ -381,79 +404,8 @@ def format_timestamp(created_at: datetime) -> str:
         return f"{days}天前"
 
 
-async def generate_comments_for_post(post_id: int, human_user_id: int):
-    """为帖子生成评论"""
-    # 在异步任务中创建新的数据库会话，避免会话冲突
-    from backend.database.database import get_db_session
-    db = get_db_session()
-    
-    try:
-        logger.info(f"开始为帖子 {post_id} 生成评论，人类用户ID: {human_user_id}...")
-        
-        # 获取人类用户信息
-        human_user = crud.get_human_user_by_id(db, human_user_id)
-        if not human_user:
-            logger.error(f"未找到人类用户ID: {human_user_id}")
-            return
-        
-        # 获取用户模板
-        template = crud.get_user_template_by_id(db, human_user.user_template_id)
-        if not template:
-            logger.error(f"未找到模板ID: {human_user.user_template_id}")
-            return
-        
-        # 获取帖子内容
-        post = db.query(models.Post).filter(models.Post.post_id == post_id).first()
-        if not post:
-            logger.error(f"未找到帖子ID: {post_id}")
-            return
-        
-        # 获取该人类用户的所有AI用户
-        ai_users = crud.get_ai_users_by_human_user_id(db, human_user_id)
-        if not ai_users:
-            logger.warning(f"人类用户 {human_user_id} 没有对应的AI用户")
-            return
-        
-        # 使用PostService生成评论
-        from backend.services.post_service import PostService
-        from backend.models import Post as PostModel, Comment as CommentModel
-        
-        # 创建Post对象用于PostService
-        post_for_service = PostModel(
-            post_content=post.post_content,
-            like_count=post.like_count,
-            created_at=post.created_at
-        )
-        
-        # 初始化PostService
-        post_service = PostService(
-            content=post.post_content,
-            template_id=template.template_id,
-            human_user_id=human_user_id,
-            db=db
-        )
-        
-        # 运行PostService生成评论
-        stats = post_service.generate_comments_for_existing_post(post_id)
-        
-        # 更新帖子的统计数据
-        post.like_count = stats["pred_like_count"]
-        db.commit()
-        
-        logger.info(f"帖子 {post_id} 的评论生成完成，共 {len(post_service.comments)} 条")
-        logger.info(f"点赞数预测: {stats['pred_like_count']}")
-        logger.info(f"评论数预测: {stats['pred_comment_count']}")
-        logger.info(f"新粉丝数预测: {stats['new_follower_count']}")
-        
-        # 不再通过WebSocket广播评论数更新，由推送任务处理
-        
-    except Exception as e:
-        logger.error(f"生成评论失败: {e}")
-        import traceback
-        logger.error(f"错误详情: {traceback.format_exc()}")
-    finally:
-        # 确保数据库会话被正确关闭
-        db.close()
+# generate_comments_for_post 函数已移除
+# 现在使用 backend.celery_app.tasks.generate_comments_task 来处理AI评论生成
 
 # 用户相关接口
 @app.get("/user/profile",
@@ -787,23 +739,35 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
             "data": post_response
         }))
         
-        # 异步生成评论（不阻塞响应）
+        # **核心改进：使用Celery消息队列异步生成评论（完全解耦）**
+        from backend.celery_app.tasks import generate_comments_task
+        
+        # 提交AI评论生成任务到Celery队列（不等待执行）
+        task = generate_comments_task.delay(
+            post_id=created_post.post_id,
+            human_user_id=current_user.user_id,
+            template_id=author.user_template_id
+        )
+        
+        # 立即启动评论推送任务（不等待评论生成）
         import asyncio
-        
-        # 创建后台任务生成评论（不传递db会话，避免会话冲突）
-        comment_generation_task = asyncio.create_task(generate_comments_for_post(created_post.post_id, current_user.user_id))
-        
-        # 创建后台任务推送评论（不传递db会话，避免会话冲突）
-        comment_push_task = asyncio.create_task(comment_push_manager.start_comment_push_task(created_post.post_id))
+        comment_push_task = asyncio.create_task(
+            comment_push_manager.start_comment_push_task(created_post.post_id)
+        )
         
         # 记录任务启动信息到日志
         logger.info(f"帖子发布成功！ID: {created_post.post_id}")
         logger.info(f"内容: {created_post.post_content[:50]}...")
         logger.info(f"作者: {current_user.username}")
         logger.info(f"发布时间: {datetime.now().strftime('%H:%M:%S')}")
-        logger.info(f"后台任务已启动: 评论生成任务, 评论推送任务")
+        logger.info(f"Celery评论生成任务已提交: {task.id}")
+        logger.info(f"评论推送任务已启动")
         
-        return create_response(data=post_response)
+        return create_response(data={
+            **post_response,
+            "taskId": task.id,  # 返回任务ID用于状态查询
+            "taskStatus": "submitted"
+        })
     except HTTPException:
         # 重新抛出HTTPException，避免被通用异常处理捕获
         raise
@@ -1197,6 +1161,17 @@ async def websocket_endpoint(websocket: WebSocket):
        }
        ```
     
+    7. **comment_push_timeout** - 评论推送超时通知
+       ```json
+       {
+         "type": "comment_push_timeout",
+         "data": {
+           "postId": "post_123",
+           "message": "评论推送任务超时，请检查AI评论生成状态"
+         }
+       }
+       ```
+    
     **连接方式：**
     ```javascript
     const ws = new WebSocket('ws://localhost:8000/ws/updates');
@@ -1236,6 +1211,85 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
+# 任务状态查询接口
+@app.get("/tasks/{task_id}/status",
+         summary="查询任务状态",
+         description="查询Celery任务的执行状态，包括进度、阶段和结果信息。",
+         response_description="返回任务状态信息",
+         tags=["任务管理"])
+async def get_task_status(task_id: str):
+    """查询任务状态"""
+    try:
+        from backend.celery_app import celery_app
+        task_result = celery_app.AsyncResult(task_id)
+        
+        if task_result.state == 'PENDING':
+            response = {
+                'state': task_result.state,
+                'progress': 0,
+                'stage': 'pending',
+                'message': '任务等待执行中'
+            }
+        elif task_result.state == 'PROGRESS':
+            response = {
+                'state': task_result.state,
+                'progress': task_result.info.get('progress', 0),
+                'stage': task_result.info.get('stage', 'unknown'),
+                'post_id': task_result.info.get('post_id'),
+                'message': f"任务执行中: {task_result.info.get('stage', 'unknown')}"
+            }
+        elif task_result.state == 'SUCCESS':
+            response = {
+                'state': task_result.state,
+                'progress': 100,
+                'stage': 'completed',
+                'result': task_result.result,
+                'message': '任务执行成功'
+            }
+        else:  # FAILURE
+            response = {
+                'state': task_result.state,
+                'progress': 0,
+                'stage': 'failed',
+                'error': str(task_result.info),
+                'message': '任务执行失败'
+            }
+        
+        return create_response(data=response)
+        
+    except Exception as e:
+        logger.error(f"查询任务状态失败: {e}")
+        raise HTTPException(status_code=500, detail="查询任务状态失败")
+
+@app.get("/tasks/health",
+         summary="测试Celery连接",
+         description="测试Celery任务队列连接状态。",
+         response_description="返回连接测试结果",
+         tags=["任务管理"])
+async def test_celery_connection():
+    """测试Celery连接"""
+    try:
+        from backend.celery_app.tasks import health_check_task
+        
+        # 提交健康检查任务
+        task = health_check_task.delay()
+        
+        # 等待任务完成（最多等待10秒）
+        result = task.get(timeout=10)
+        
+        return create_response(data={
+            "celery_status": "connected",
+            "task_id": task.id,
+            "health_check_result": result
+        })
+        
+    except Exception as e:
+        logger.error(f"Celery连接测试失败: {e}")
+        return create_response(code=500, message="Celery连接失败", data={
+            "celery_status": "disconnected",
+            "error": str(e)
+        })
+
 # 系统状态接口
 @app.get("/system/status",
          summary="系统状态",
@@ -1261,6 +1315,23 @@ async def get_system_status():
             }
             push_tasks_info.append(task_info)
 
+        # 检查Celery连接状态
+        celery_status = "unknown"
+        try:
+            from backend.celery_app import celery_app
+            # 尝试获取活跃Worker信息
+            inspect = celery_app.control.inspect()
+            active_workers = inspect.active()
+            if active_workers:
+                celery_status = "connected"
+                worker_count = len(active_workers)
+            else:
+                celery_status = "no_workers"
+                worker_count = 0
+        except Exception as e:
+            celery_status = "disconnected"
+            worker_count = 0
+
         return create_response(data={
             "websocket": {
                 "activeConnections": active_connections,
@@ -1269,6 +1340,11 @@ async def get_system_status():
             "pushTasks": {
                 "count": push_tasks_count,
                 "tasks": push_tasks_info
+            },
+            "celery": {
+                "status": celery_status,
+                "workerCount": worker_count,
+                "brokerUrl": "redis://localhost:6379/0"  # 简化显示
             },
             "server": {
                 "status": "running",

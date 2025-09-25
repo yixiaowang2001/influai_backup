@@ -428,7 +428,7 @@ async function initializeApp() {
     
     console.log('[DEBUG] initializeApp 执行完成');
   } catch (error) {
-dui    console.error('[DEBUG] 应用初始化失败:', error);
+    console.error('[DEBUG] 应用初始化失败:', error);
     showErrorState(`应用初始化失败: ${error.message}`);
   }
 }
