@@ -354,6 +354,80 @@ class CommentPushManager:
 # 创建评论推送管理器实例
 comment_push_manager = CommentPushManager()
 
+# 导入新的通用推送服务
+from backend.services.push_config import PushConfigManager
+from backend.services.push_service import GenericPushManager, CommentPushService, LikePushService, PushItem
+from backend.database.database import get_db_session
+
+# 创建推送服务管理器
+class PushServiceManager:
+    """推送服务管理器 - 统一管理所有推送服务"""
+    
+    def __init__(self, connection_manager):
+        self.connection_manager = connection_manager
+        self.push_manager = GenericPushManager(connection_manager)
+        self.comment_service = CommentPushService(self.push_manager, get_db_session)
+        self.like_service = LikePushService(self.push_manager, get_db_session)
+    
+    async def start_comment_push(self, post_id: int, config=None):
+        """
+        启动评论推送任务
+        
+        Args:
+            post_id: 帖子ID
+            config: 推送配置，如果为None则使用默认配置
+        
+        Returns:
+            任务ID
+        """
+        if config is None:
+            config = PushConfigManager.DEFAULT_COMMENT_CONFIG
+        
+        task_id = await self.push_manager.start_push_task(
+            target_id=str(post_id),
+            config=config,
+            get_items_func=self.comment_service.get_unpushed_comments,
+            format_message_func=self.comment_service.format_comment_message,
+            update_status_func=self.comment_service.update_comment_push_status
+        )
+        
+        return task_id
+    
+    async def start_like_push(self, target_id: str, config=None):
+        """
+        启动点赞推送任务
+        
+        Args:
+            target_id: 目标ID（帖子或评论）
+            config: 推送配置，如果为None则使用默认配置
+        
+        Returns:
+            任务ID
+        """
+        if config is None:
+            config = PushConfigManager.DEFAULT_LIKE_CONFIG
+        
+        task_id = await self.push_manager.start_push_task(
+            target_id=target_id,
+            config=config,
+            get_items_func=self.like_service.get_unpushed_likes,
+            format_message_func=self.like_service.format_like_message,
+            update_status_func=self.like_service.update_like_push_status
+        )
+        
+        return task_id
+    
+    def stop_push_task(self, task_id: str) -> bool:
+        """停止推送任务"""
+        return self.push_manager.stop_push_task(task_id)
+    
+    def get_active_tasks(self) -> dict:
+        """获取所有活跃任务"""
+        return self.push_manager.get_active_tasks()
+
+# 创建新的推送服务管理器实例
+push_service_manager = PushServiceManager(manager)
+
 # 通用响应格式
 def create_response(code: int = 200, message: str = "success", data: Any = None):
     return {
@@ -793,8 +867,15 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
         # 创建后台任务生成评论（不传递db会话，避免会话冲突）
         comment_generation_task = asyncio.create_task(generate_comments_for_post(created_post.post_id, current_user.user_id))
         
-        # 创建后台任务推送评论（不传递db会话，避免会话冲突）
-        comment_push_task = asyncio.create_task(comment_push_manager.start_comment_push_task(created_post.post_id))
+        # 使用新的通用推送服务启动评论推送任务
+        # 可以根据需要调整推送配置
+        push_config = PushConfigManager.get_comment_config(
+            total_duration=300,  # 5分钟
+            base_interval=10.0  # 10秒间隔
+        )
+        comment_push_task = asyncio.create_task(
+            push_service_manager.start_comment_push(created_post.post_id, push_config)
+        )
         
         # 记录任务启动信息到日志
         logger.info(f"帖子发布成功！ID: {created_post.post_id}")
@@ -1102,6 +1183,78 @@ async def get_posts_comments_stats(request: dict, db: Session = Depends(get_db))
     except Exception as e:
         logger.error(f"批量获取评论统计失败: {e}")
         raise HTTPException(status_code=500, detail="获取评论统计失败")
+
+# 推送管理接口
+@app.get("/push/tasks",
+         summary="获取活跃推送任务",
+         description="获取当前所有活跃的推送任务信息",
+         response_description="返回活跃推送任务列表",
+         tags=["推送管理"])
+async def get_active_push_tasks():
+    """获取所有活跃的推送任务"""
+    try:
+        active_tasks = push_service_manager.get_active_tasks()
+        return create_response(data={
+            "activeTasks": active_tasks,
+            "totalCount": len(active_tasks)
+        })
+    except Exception as e:
+        logger.error(f"获取活跃推送任务失败: {e}")
+        raise HTTPException(status_code=500, detail="获取推送任务失败")
+
+@app.post("/push/tasks/{task_id}/stop",
+          summary="停止推送任务",
+          description="停止指定的推送任务",
+          response_description="停止成功返回确认信息",
+          tags=["推送管理"])
+async def stop_push_task(task_id: str):
+    """停止指定的推送任务"""
+    try:
+        success = push_service_manager.stop_push_task(task_id)
+        if success:
+            return create_response(message=f"推送任务 {task_id} 已停止")
+        else:
+            raise HTTPException(status_code=404, detail="推送任务不存在")
+    except Exception as e:
+        logger.error(f"停止推送任务失败: {e}")
+        raise HTTPException(status_code=500, detail="停止推送任务失败")
+
+@app.post("/push/comments/{post_id}",
+          summary="手动启动评论推送",
+          description="为指定帖子手动启动评论推送任务，支持自定义推送配置",
+          response_description="启动成功返回任务ID",
+          tags=["推送管理"])
+async def start_comment_push_manual(post_id: str, 
+                                   total_duration: int = 300,
+                                   base_interval: float = 10.0):
+    """手动启动评论推送任务"""
+    try:
+        # 从post_id中提取数字ID
+        try:
+            numeric_id = int(post_id.replace("post_", ""))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="无效的帖子ID")
+        
+        # 创建自定义推送配置
+        push_config = PushConfigManager.get_comment_config(
+            total_duration=total_duration,
+            base_interval=base_interval
+        )
+        
+        # 启动推送任务
+        task_id = await push_service_manager.start_comment_push(numeric_id, push_config)
+        
+        return create_response(data={
+            "taskId": task_id,
+            "postId": post_id,
+            "config": {
+                "totalDuration": total_duration,
+                "baseInterval": base_interval
+            }
+        })
+    except Exception as e:
+        logger.error(f"手动启动评论推送失败: {e}")
+        raise HTTPException(status_code=500, detail="启动评论推送失败")
 
 # WebSocket接口
 @app.websocket("/ws/updates")
