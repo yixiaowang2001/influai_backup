@@ -352,7 +352,7 @@ class PushServiceManager:
         """启动评论推送任务"""
         if config is None:
             from backend.services.push_config import PushConfigManager
-            config = PushConfigManager.DEFAULT_COMMENT_CONFIG
+            config = PushConfigManager.get_default_comment_config()
         
         return await self.push_manager.start_push_task(
             target_id=str(post_id),
@@ -366,7 +366,7 @@ class PushServiceManager:
         """启动点赞推送任务"""
         if config is None:
             from backend.services.push_config import PushConfigManager
-            config = PushConfigManager.DEFAULT_LIKE_CONFIG
+            config = PushConfigManager.get_default_like_config()
         
         return await self.push_manager.start_push_task(
             target_id=target_id,

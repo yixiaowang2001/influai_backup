@@ -802,13 +802,9 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
         comment_generation_task = asyncio.create_task(generate_comments_for_post(created_post.post_id, current_user.user_id))
         
         # 使用新的通用推送服务启动评论推送任务
-        # 可以根据需要调整推送配置
-        push_config = PushConfigManager.get_comment_config(
-            total_duration=300,  # 5分钟
-            base_interval=10.0  # 10秒间隔
-        )
+        # 使用默认配置（从global_config.py读取）
         comment_push_task = asyncio.create_task(
-            push_service_manager.start_comment_push(created_post.post_id, push_config)
+            push_service_manager.start_comment_push(created_post.post_id)
         )
         
         # 记录任务启动信息到日志
