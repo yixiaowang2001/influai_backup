@@ -43,9 +43,7 @@ class PushConfigManager:
     )
     
     @classmethod
-    def get_comment_config(cls, 
-                          total_duration: int = 300,
-                          base_interval: float = 10.0) -> PushConfig:
+    def get_comment_config(cls, total_duration: int = 300, base_interval: float = 10.0) -> PushConfig:
         """获取评论推送配置"""
         return PushConfig(
             push_type=PushType.COMMENT,
@@ -56,9 +54,7 @@ class PushConfigManager:
         )
     
     @classmethod
-    def get_like_config(cls,
-                       total_duration: int = 180,
-                       base_interval: float = 8.0) -> PushConfig:
+    def get_like_config(cls, total_duration: int = 180, base_interval: float = 8.0) -> PushConfig:
         """获取点赞推送配置"""
         return PushConfig(
             push_type=PushType.LIKE,

@@ -10,9 +10,9 @@ from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass
 
 from backend.utils.logger import get_logger
+from backend.services.push_config import PushConfig, PushType
 
 logger = get_logger(__name__)
-from backend.services.push_config import PushConfig, PushType
 
 
 @dataclass
@@ -337,3 +337,49 @@ class LikePushService:
         """更新点赞推送状态"""
         # 根据实际业务逻辑实现
         pass
+
+
+class PushServiceManager:
+    """推送服务管理器 - 统一管理所有推送服务"""
+    
+    def __init__(self, connection_manager, db_session_func):
+        self.connection_manager = connection_manager
+        self.push_manager = GenericPushManager(connection_manager)
+        self.comment_service = CommentPushService(self.push_manager, db_session_func)
+        self.like_service = LikePushService(self.push_manager, db_session_func)
+    
+    async def start_comment_push(self, post_id: int, config=None):
+        """启动评论推送任务"""
+        if config is None:
+            from backend.services.push_config import PushConfigManager
+            config = PushConfigManager.DEFAULT_COMMENT_CONFIG
+        
+        return await self.push_manager.start_push_task(
+            target_id=str(post_id),
+            config=config,
+            get_items_func=self.comment_service.get_unpushed_comments,
+            format_message_func=self.comment_service.format_comment_message,
+            update_status_func=self.comment_service.update_comment_push_status
+        )
+    
+    async def start_like_push(self, target_id: str, config=None):
+        """启动点赞推送任务"""
+        if config is None:
+            from backend.services.push_config import PushConfigManager
+            config = PushConfigManager.DEFAULT_LIKE_CONFIG
+        
+        return await self.push_manager.start_push_task(
+            target_id=target_id,
+            config=config,
+            get_items_func=self.like_service.get_unpushed_likes,
+            format_message_func=self.like_service.format_like_message,
+            update_status_func=self.like_service.update_like_push_status
+        )
+    
+    def stop_push_task(self, task_id: str) -> bool:
+        """停止推送任务"""
+        return self.push_manager.stop_push_task(task_id)
+    
+    def get_active_tasks(self) -> dict:
+        """获取所有活跃任务"""
+        return self.push_manager.get_active_tasks()
