@@ -384,7 +384,7 @@ def test_prompt_generation():
     # 测试参数
     test_params = {
         "post_content": "煞笔公司……不想干了，压力太大了。累死累活还不如一个臭写代码的",
-        "parent_comment_content": "压力大还来抱怨，普通上班族连喘口气都是奢侈，求求你别卖惨了行不行？",
+        "parent_comment_content": "矫情什么呢🙄",
         "parent_comment_attitude": "狂热",
         "is_human_user": False,
         "comment_count": 87,
