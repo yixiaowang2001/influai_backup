@@ -225,6 +225,9 @@ if __name__ == "__main__":
     print("开始调用大模型生成评论...")
     print("=" * 80)
 
+    print(f"System Prompt: \n{system_prompt}")
+    print(f"User Prompt: \n{user_prompt}")
+
     response = chat(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
