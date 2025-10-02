@@ -19,6 +19,11 @@ backend_path = os.path.join(project_root, 'backend')
 sys.path.insert(0, project_root)
 sys.path.insert(0, backend_path)
 
+# 设置当前工作目录
+os.chdir(project_root)
+
+from backend.models.attitude import Attitude
+
 # 设置数据库环境变量
 os.environ.update({
     "DB_TYPE": "mysql",
@@ -92,7 +97,7 @@ def get_parent_comment_attitude(parent_comment, db):
         return "极好"
 
 
-def get_test_parameters(post_id: int, parent_comment_id: int, conversation_type: str = "双人来回对话") -> Dict:
+def get_test_parameters(post_id: int, parent_comment_id: int, conversation_type: str = "双人来回对话", comment_count: int = 87) -> Dict:
     """获取测试所需的所有参数"""
     try:
         if not ensure_current_user_set():
@@ -134,6 +139,7 @@ def get_test_parameters(post_id: int, parent_comment_id: int, conversation_type:
             "parent_comment_attitude": get_parent_comment_attitude(parent_comment, db),
             "is_human_user": parent_comment.sender_type == "human_user",
             "conversation_type": conversation_type,
+            "comment_count": comment_count,
             "grandparent_comment_content": grandparent_comment_content,
             "current_user": {
                 "user_id": current_user.user_id,
@@ -163,7 +169,7 @@ def get_test_parameters(post_id: int, parent_comment_id: int, conversation_type:
 
 if __name__ == "__main__":
     # 获取参数
-    parameters = get_test_parameters(post_id=1, parent_comment_id=1, conversation_type="双人来回对话")
+    parameters = get_test_parameters(post_id=1, parent_comment_id=1, conversation_type="双人来回对话", comment_count=87)
     
     if not parameters:
         print("获取参数失败")
@@ -172,111 +178,84 @@ if __name__ == "__main__":
     # 基本的prompt模板
     system_prompt = f"""你是一个专业的社交媒体评论生成助手。你的任务是模拟网友们对博主的帖子某条评论的看法，针对该条评论，生成多条该评论的嵌套子评论（评论链）。
 
-
-
-
-
-
-
 # 生成要求
 1. 可参考的内容：博主人设，博主帖子内容，上级评论内容，上级评论态度，上级评论者（是否为博主）。
-2. 生成一套嵌套的子评论，
+2. 生成的嵌套子评论长短不一，攻击性强，情绪明确强烈。嵌套子评论本质上是多人（或双人）在围绕上级评论的观点进行争执。
+3. 评论内容要自然、真实，符合社交媒体用户的表达习惯。
+4. 根据帖子的评论数（{parameters['comment_count']}条），自主决定生成深度。
+5. 子评论长短不一，可以为短、一针见血、情绪强烈的（8字以内）；也可以为长但诉说、情绪强烈的（8字以上）。
+6. 生成内容需要严格符合返回格式。
 
-人设信息：{parameters['persona']}
+# 态度类型
+{list(Attitude)}
 
-生成要求：
-1. 模拟用户之间的对话，围绕上级评论展开讨论
-2. 对话特点：
-   - 深度较深，通常有3-7轮对话，每层衍生对话通常不会很多（1-3条）
-   - 双方攻击性要强，形成激烈的争论
-   - 对话要有逻辑递进，不能简单重复
-3. 对话内容要自然、真实，符合社交媒体用户的表达习惯
-4. 每条评论都要有明确的态度倾向
-5. 对话要围绕上级评论提到的内容展开，不能偏离主题
-6. 确保对话有深度，每轮都要有新的观点或反驳
+# 返回格式
+返回格式为JSON。其中lv1、lv2等代表子评论层级（生成深度），生成深度要至少超过三层，多少你自行决定。用户代表发言用户。同一用户可以在不同子评论层级发表多条评论，但是注意要保持观点一致性。
+态度类型，为网友对博主帖子的态度，而不是对上级评论的态度。返回格式如下：
+{{
+    "comments": {{
+        "lv1": [
+            {{  
+                "user": "用户A"
+                "attitude": "态度类型",
+                "content": "评论内容"
+            }},
+            {{  
+                "user": "用户B"
+                "attitude": "态度类型",
+                "content": "评论内容"
+            }}
+        ],
+        "lv2": [
+            {{  
+                "user": "用户C"
+                "attitude": "态度类型",
+                "content": "评论内容"
+            }},
+            {{  
+                "user": "用户D"
+                "attitude": "态度类型",
+                "content": "评论内容"
+            }}
+        ],
+        "lv3": [
+            {{  
+                "user": "用户A"
+                "attitude": "态度类型",
+                "content": "评论内容"
+            }},
+            {{  
+                "user": "用户E"
+                "attitude": "态度类型",
+                "content": "评论内容"
+            }}
+        ]
+    }}
+}}
+"""
 
-对话生成策略：
-- 支持方：对博主持{parameters['parent_comment_attitude']}态度，支持上级评论
-- 质疑方：对博主持相反态度，质疑上级评论
-- 对话本身要接近网络用语
-- 每轮对话都要有新的论据或反驳点
-- 对话要有层次感，从表面争论深入到本质分歧
-- 每层可以有多条评论，不限制每层只有一条评论
+    user_prompt = f"""请基于以下信息生成多条子评论：
+# 博主人设
+{parameters['persona']}
 
-请生成符合人设的、有深度的对话评论链。"""
+# 博主帖子内容
+{parameters['post_content']}
 
-    user_prompt = f"""请基于以下信息生成深度评论链：
+# 上级评论内容
+{parameters['parent_comment_content']}
 
-帖子内容：{parameters['post_content']}
+# 上级评论态度
+{parameters['parent_comment_attitude']}
 
-上级评论内容：{parameters['parent_comment_content']}
-上级评论态度：{parameters['parent_comment_attitude']}
-上级评论类型：{'人类用户' if parameters['is_human_user'] else 'AI用户'}
+# 上级评论者
+{'博主' if parameters['is_human_user'] else '网友'}
 
-对话类型：{parameters['conversation_type']}"""
+# 帖子评论数
+{parameters['comment_count']}条
+"""
 
     if parameters['grandparent_comment_content']:
-        user_prompt += f"\n上级评论的上级评论：{parameters['grandparent_comment_content']}"
-    
-    user_prompt += """
-
-请按照对话特点生成符合人设的、有深度的评论对话。
-
-重要提醒：
-- 生成深度对话，各方要有不同的观点和角度
-- 对话要有深度，每轮都要有新的观点或反驳
-- 围绕上级评论提到的内容来展开讨论
-- 确保对话内容与上级评论内容高度相关
-- 对话要有逻辑递进，不能简单重复
-
-返回格式为JSON：
-{
-    "评论链": [
-        {
-            "层级": 1,
-            "评论": [
-                {
-                    "用户A": "评论内容1",
-                    "态度": "极好"
-                },
-                {
-                    "用户B": "评论内容2", 
-                    "态度": "极差"
-                }
-            ]
-        },
-        {
-            "层级": 2,
-            "评论": [
-                {
-                    "用户A": "评论内容3",
-                    "态度": "狂热"
-                },
-                {
-                    "用户B": "评论内容4",
-                    "态度": "不友善"
-                },
-                {
-                    "用户C": "评论内容5",
-                    "态度": "友善"
-                }
-            ]
-        },
-        {
-            "层级": 3,
-            "评论": [
-                {
-                    "用户A": "评论内容6",
-                    "态度": "极好"
-                },
-                {
-                    "用户B": "评论内容7",
-                    "态度": "极差"
-                }
-            ]
-        }
-    ]
-}"""
+        user_prompt += f"\n# 上级评论的上级评论\n\n{parameters['grandparent_comment_content']}"
     
     # 调用大模型生成评论
     print("开始调用大模型生成深度评论...")
