@@ -377,6 +377,14 @@ class CommentPushManager:
 # 创建评论推送管理器实例
 comment_push_manager = CommentPushManager()
 
+# 导入新的通用推送服务
+from backend.services.push_config import PushConfigManager
+from backend.services.push_service import PushServiceManager
+from backend.database.database import get_db_session
+
+# 创建新的推送服务管理器实例
+push_service_manager = PushServiceManager(manager, get_db_session)
+
 # 通用响应格式
 def create_response(code: int = 200, message: str = "success", data: Any = None):
     return {
@@ -814,10 +822,10 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
             template_id=author.user_template_id
         )
         
-        # 立即启动评论推送任务（不等待评论生成）
-        import asyncio
+        # 使用新的通用推送服务启动评论推送任务
+        # 使用默认配置（从global_config.py读取）
         comment_push_task = asyncio.create_task(
-            comment_push_manager.start_comment_push_task(created_post.post_id)
+            push_service_manager.start_comment_push(created_post.post_id)
         )
         
         # 记录任务启动信息到日志
@@ -1132,105 +1140,77 @@ async def get_posts_comments_stats(request: dict, db: Session = Depends(get_db))
         logger.error(f"批量获取评论统计失败: {e}")
         raise HTTPException(status_code=500, detail="获取评论统计失败")
 
-@app.post("/posts/likes-stats",
-          summary="批量获取帖子点赞统计",
-          description="批量获取多个帖子的点赞数统计。用于异步加载点赞信息，避免阻塞主要的帖子列表查询。",
-          response_description="返回各个帖子的点赞数统计",
-          tags=["帖子管理"])
-async def get_posts_likes_stats(request: dict, db: Session = Depends(get_db)):
-    """批量获取帖子点赞统计"""
+# 推送管理接口
+@app.get("/push/tasks",
+         summary="获取活跃推送任务",
+         description="获取当前所有活跃的推送任务信息",
+         response_description="返回活跃推送任务列表",
+         tags=["推送管理"])
+async def get_active_push_tasks():
+    """获取所有活跃的推送任务"""
     try:
-        post_ids = request.get("post_ids", [])
-        if not post_ids:
-            return create_response(data={})
-        
-        stats = {}
-        for post_id in post_ids:
-            try:
-                # 从post_id中提取数字ID
-                numeric_id = int(post_id.replace("post_", ""))
-                
-                # 获取帖子信息
-                post = db.query(models.Post).filter(models.Post.post_id == numeric_id).first()
-                if post:
-                    stats[post_id] = {
-                        "likes": post.like_count,
-                        "isLiked": post.is_human_user_liked == 1
-                    }
-                else:
-                    stats[post_id] = {
-                        "likes": 0,
-                        "isLiked": False
-                    }
-                
-            except ValueError:
-                # 跳过无效的post_id
-                stats[post_id] = {
-                    "likes": 0,
-                    "isLiked": False
-                }
-            except Exception as e:
-                logger.warning(f"获取帖子 {post_id} 点赞数失败: {e}")
-                stats[post_id] = {
-                    "likes": 0,
-                    "isLiked": False
-                }
-        
-        return create_response(data=stats)
-        
+        active_tasks = push_service_manager.get_active_tasks()
+        return create_response(data={
+            "activeTasks": active_tasks,
+            "totalCount": len(active_tasks)
+        })
     except Exception as e:
-        logger.error(f"批量获取帖子点赞统计失败: {e}")
-        raise HTTPException(status_code=500, detail="获取帖子点赞统计失败")
+        logger.error(f"获取活跃推送任务失败: {e}")
+        raise HTTPException(status_code=500, detail="获取推送任务失败")
 
-@app.post("/comments/likes-stats",
-          summary="批量获取评论点赞统计",
-          description="批量获取多个评论的点赞数统计。用于异步加载点赞信息，避免阻塞主要的评论列表查询。",
-          response_description="返回各个评论的点赞数统计",
-          tags=["评论管理"])
-async def get_comments_likes_stats(request: dict, db: Session = Depends(get_db)):
-    """批量获取评论点赞统计"""
+@app.post("/push/tasks/{task_id}/stop",
+          summary="停止推送任务",
+          description="停止指定的推送任务",
+          response_description="停止成功返回确认信息",
+          tags=["推送管理"])
+async def stop_push_task(task_id: str):
+    """停止指定的推送任务"""
     try:
-        comment_ids = request.get("comment_ids", [])
-        if not comment_ids:
-            return create_response(data={})
-        
-        stats = {}
-        for comment_id in comment_ids:
-            try:
-                # 从comment_id中提取数字ID
-                numeric_id = int(comment_id.replace("comment_", ""))
-                
-                # 获取评论信息
-                comment = db.query(models.Comment).filter(models.Comment.comment_id == numeric_id).first()
-                if comment:
-                    stats[comment_id] = {
-                        "likes": comment.comment_likes,
-                        "isLiked": comment.is_human_user_liked == 1
-                    }
-                else:
-                    stats[comment_id] = {
-                        "likes": 0,
-                        "isLiked": False
-                    }
-                
-            except ValueError:
-                # 跳过无效的comment_id
-                stats[comment_id] = {
-                    "likes": 0,
-                    "isLiked": False
-                }
-            except Exception as e:
-                logger.warning(f"获取评论 {comment_id} 点赞数失败: {e}")
-                stats[comment_id] = {
-                    "likes": 0,
-                    "isLiked": False
-                }
-        
-        return create_response(data=stats)
-        
+        success = push_service_manager.stop_push_task(task_id)
+        if success:
+            return create_response(message=f"推送任务 {task_id} 已停止")
+        else:
+            raise HTTPException(status_code=404, detail="推送任务不存在")
     except Exception as e:
-        logger.error(f"批量获取评论点赞统计失败: {e}")
-        raise HTTPException(status_code=500, detail="获取评论点赞统计失败")
+        logger.error(f"停止推送任务失败: {e}")
+        raise HTTPException(status_code=500, detail="停止推送任务失败")
+
+@app.post("/push/comments/{post_id}",
+          summary="手动启动评论推送",
+          description="为指定帖子手动启动评论推送任务，支持自定义推送配置",
+          response_description="启动成功返回任务ID",
+          tags=["推送管理"])
+async def start_comment_push_manual(post_id: str, 
+                                   total_duration: int = 300,
+                                   base_interval: float = 10.0):
+    """手动启动评论推送任务"""
+    try:
+        # 从post_id中提取数字ID
+        try:
+            numeric_id = int(post_id.replace("post_", ""))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="无效的帖子ID")
+        
+        # 创建自定义推送配置
+        push_config = PushConfigManager.get_comment_config(
+            total_duration=total_duration,
+            base_interval=base_interval
+        )
+        
+        # 启动推送任务
+        task_id = await push_service_manager.start_comment_push(numeric_id, push_config)
+        
+        return create_response(data={
+            "taskId": task_id,
+            "postId": post_id,
+            "config": {
+                "totalDuration": total_duration,
+                "baseInterval": base_interval
+            }
+        })
+    except Exception as e:
+        logger.error(f"手动启动评论推送失败: {e}")
+        raise HTTPException(status_code=500, detail="启动评论推送失败")
 
 # WebSocket接口
 @app.websocket("/ws/updates")

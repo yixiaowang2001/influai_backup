@@ -21,10 +21,6 @@
 - 人设模版（和粉丝数量不匹配）- 成长这一块
 - prompt：如果用户发一些无意义内容，生成的评论会很人机
 
-## 未来TODO
-- 接口开发
-  - 删除human_user
-
 ## Notes
 
 ### 1. 生成requirements.txt
