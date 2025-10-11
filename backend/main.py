@@ -311,7 +311,9 @@ class CommentPushManager:
                     "content": comment_to_push.comment_content,
                     "author": author_info,
                     "timestamp": format_timestamp(comment_to_push.created_at),
-                    "createdAt": comment_to_push.created_at.isoformat()
+                    "createdAt": comment_to_push.created_at.isoformat(),
+                    "likes": comment_to_push.comment_likes,
+                    "isLiked": comment_to_push.is_human_user_liked == 1
                 }
                 
                 # 推送评论到前端
@@ -675,7 +677,9 @@ async def get_posts(db: Session = Depends(get_db)):
                 },
                 "timestamp": format_timestamp(post.created_at),
                 "createdAt": post.created_at.isoformat(),
-                "commentsCount": comment_count  # 直接返回实际的评论数
+                "likes": post.like_count,
+                "commentsCount": comment_count,  # 直接返回实际的评论数
+                "isLiked": is_liked
             }
             post_list.append(post_data)
         
@@ -724,7 +728,9 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
             },
             "timestamp": format_timestamp(created_post.created_at),
             "createdAt": created_post.created_at.isoformat(),
-            "commentsCount": 0
+            "likes": created_post.like_count,
+            "commentsCount": 0,
+            "isLiked": created_post.is_human_user_liked == 1
         }
         
         # 通过WebSocket广播新帖子
@@ -897,7 +903,9 @@ async def get_comments(
                 "content": comment.comment_content,
                 "author": author_info,
                 "timestamp": format_timestamp(comment.created_at),
-                "createdAt": comment.created_at.isoformat()
+                "createdAt": comment.created_at.isoformat(),
+                "likes": comment.comment_likes,
+                "isLiked": comment.is_human_user_liked == 1
             }
             comment_list.append(comment_data)
         
@@ -953,7 +961,9 @@ async def create_comment(post_id: str, comment_data: CreateCommentRequest, db: S
                 "userId": f"@{current_user.username.lower()}"
             },
             "timestamp": format_timestamp(new_comment.created_at),
-            "createdAt": new_comment.created_at.isoformat()
+            "createdAt": new_comment.created_at.isoformat(),
+            "likes": new_comment.comment_likes,
+            "isLiked": new_comment.is_human_user_liked == 1
         }
         
         # 通过WebSocket广播新评论
@@ -1057,202 +1067,105 @@ async def get_posts_comments_stats(request: dict, db: Session = Depends(get_db))
         logger.error(f"批量获取评论统计失败: {e}")
         raise HTTPException(status_code=500, detail="获取评论统计失败")
 
-# 点赞信息查询接口
 @app.post("/posts/likes-stats",
-          summary="批量获取帖子点赞信息",
-          description="批量获取多个帖子的点赞信息，包括点赞数和当前用户点赞状态。",
-          response_description="返回各个帖子的点赞信息",
-          tags=["点赞管理"])
+          summary="批量获取帖子点赞统计",
+          description="批量获取多个帖子的点赞数统计。用于异步加载点赞信息，避免阻塞主要的帖子列表查询。",
+          response_description="返回各个帖子的点赞数统计",
+          tags=["帖子管理"])
 async def get_posts_likes_stats(request: dict, db: Session = Depends(get_db)):
-    """批量获取帖子点赞信息"""
+    """批量获取帖子点赞统计"""
     try:
         post_ids = request.get("post_ids", [])
         if not post_ids:
             return create_response(data={})
         
-        # 限制批量查询数量，避免性能问题
-        if len(post_ids) > 50:
-            raise HTTPException(status_code=400, detail="一次最多查询50个帖子")
-        
-        # 获取当前用户
-        current_user = user_manager.get_current_user()
-        
-        # 提取数字ID
-        numeric_ids = []
-        id_mapping = {}
+        stats = {}
         for post_id in post_ids:
             try:
+                # 从post_id中提取数字ID
                 numeric_id = int(post_id.replace("post_", ""))
-                numeric_ids.append(numeric_id)
-                id_mapping[numeric_id] = post_id
+                
+                # 获取帖子信息
+                post = db.query(models.Post).filter(models.Post.post_id == numeric_id).first()
+                if post:
+                    stats[post_id] = {
+                        "likes": post.like_count,
+                        "isLiked": post.is_human_user_liked == 1
+                    }
+                else:
+                    stats[post_id] = {
+                        "likes": 0,
+                        "isLiked": False
+                    }
+                
             except ValueError:
-                continue
-        
-        if not numeric_ids:
-            return create_response(data={})
-        
-        # 批量查询帖子点赞信息
-        posts = db.query(models.Post).filter(
-            models.Post.post_id.in_(numeric_ids)
-        ).all()
-        
-        stats = {}
-        for post in posts:
-            post_id = id_mapping[post.post_id]
-            # 判断当前用户是否点赞了该帖子
-            is_liked = False
-            if current_user:
-                is_liked = post.is_human_user_liked == 1
-            
-            stats[post_id] = {
-                "likes": post.like_count,
-                "isLiked": is_liked
-            }
+                # 跳过无效的post_id
+                stats[post_id] = {
+                    "likes": 0,
+                    "isLiked": False
+                }
+            except Exception as e:
+                logger.warning(f"获取帖子 {post_id} 点赞数失败: {e}")
+                stats[post_id] = {
+                    "likes": 0,
+                    "isLiked": False
+                }
         
         return create_response(data=stats)
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"批量获取帖子点赞信息失败: {e}")
-        raise HTTPException(status_code=500, detail="获取帖子点赞信息失败")
-
-@app.get("/posts/{post_id}/likes",
-         summary="获取单个帖子点赞信息",
-         description="获取指定帖子的点赞信息，包括点赞数和当前用户点赞状态。",
-         response_description="返回帖子的点赞信息",
-         tags=["点赞管理"])
-async def get_post_likes(post_id: str, db: Session = Depends(get_db)):
-    """获取单个帖子点赞信息"""
-    try:
-        # 从post_id中提取数字ID
-        try:
-            numeric_id = int(post_id.replace("post_", ""))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="无效的帖子ID")
-        
-        # 获取帖子
-        post = db.query(models.Post).filter(models.Post.post_id == numeric_id).first()
-        if not post:
-            raise HTTPException(status_code=404, detail="帖子不存在")
-        
-        # 获取当前用户
-        current_user = user_manager.get_current_user()
-        
-        # 判断当前用户是否点赞了该帖子
-        is_liked = False
-        if current_user:
-            is_liked = post.is_human_user_liked == 1
-        
-        return create_response(data={
-            "postId": post_id,
-            "likes": post.like_count,
-            "isLiked": is_liked
-        })
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"获取帖子点赞信息失败: {e}")
-        raise HTTPException(status_code=500, detail="获取帖子点赞信息失败")
+        logger.error(f"批量获取帖子点赞统计失败: {e}")
+        raise HTTPException(status_code=500, detail="获取帖子点赞统计失败")
 
 @app.post("/comments/likes-stats",
-          summary="批量获取评论点赞信息",
-          description="批量获取多个评论的点赞信息，包括点赞数和当前用户点赞状态。",
-          response_description="返回各个评论的点赞信息",
-          tags=["点赞管理"])
+          summary="批量获取评论点赞统计",
+          description="批量获取多个评论的点赞数统计。用于异步加载点赞信息，避免阻塞主要的评论列表查询。",
+          response_description="返回各个评论的点赞数统计",
+          tags=["评论管理"])
 async def get_comments_likes_stats(request: dict, db: Session = Depends(get_db)):
-    """批量获取评论点赞信息"""
+    """批量获取评论点赞统计"""
     try:
         comment_ids = request.get("comment_ids", [])
         if not comment_ids:
             return create_response(data={})
         
-        # 限制批量查询数量，避免性能问题
-        if len(comment_ids) > 50:
-            raise HTTPException(status_code=400, detail="一次最多查询50个评论")
-        
-        # 获取当前用户
-        current_user = user_manager.get_current_user()
-        
-        # 提取数字ID
-        numeric_ids = []
-        id_mapping = {}
+        stats = {}
         for comment_id in comment_ids:
             try:
+                # 从comment_id中提取数字ID
                 numeric_id = int(comment_id.replace("comment_", ""))
-                numeric_ids.append(numeric_id)
-                id_mapping[numeric_id] = comment_id
+                
+                # 获取评论信息
+                comment = db.query(models.Comment).filter(models.Comment.comment_id == numeric_id).first()
+                if comment:
+                    stats[comment_id] = {
+                        "likes": comment.comment_likes,
+                        "isLiked": comment.is_human_user_liked == 1
+                    }
+                else:
+                    stats[comment_id] = {
+                        "likes": 0,
+                        "isLiked": False
+                    }
+                
             except ValueError:
-                continue
-        
-        if not numeric_ids:
-            return create_response(data={})
-        
-        # 批量查询评论点赞信息
-        comments = db.query(models.Comment).filter(
-            models.Comment.comment_id.in_(numeric_ids)
-        ).all()
-        
-        stats = {}
-        for comment in comments:
-            comment_id = id_mapping[comment.comment_id]
-            # 判断当前用户是否点赞了该评论
-            is_liked = False
-            if current_user:
-                is_liked = comment.is_human_user_liked == 1
-            
-            stats[comment_id] = {
-                "likes": comment.comment_likes,
-                "isLiked": is_liked
-            }
+                # 跳过无效的comment_id
+                stats[comment_id] = {
+                    "likes": 0,
+                    "isLiked": False
+                }
+            except Exception as e:
+                logger.warning(f"获取评论 {comment_id} 点赞数失败: {e}")
+                stats[comment_id] = {
+                    "likes": 0,
+                    "isLiked": False
+                }
         
         return create_response(data=stats)
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"批量获取评论点赞信息失败: {e}")
-        raise HTTPException(status_code=500, detail="获取评论点赞信息失败")
-
-@app.get("/comments/{comment_id}/likes",
-         summary="获取单个评论点赞信息",
-         description="获取指定评论的点赞信息，包括点赞数和当前用户点赞状态。",
-         response_description="返回评论的点赞信息",
-         tags=["点赞管理"])
-async def get_comment_likes(comment_id: str, db: Session = Depends(get_db)):
-    """获取单个评论点赞信息"""
-    try:
-        # 从comment_id中提取数字ID
-        try:
-            numeric_id = int(comment_id.replace("comment_", ""))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="无效的评论ID")
-        
-        # 获取评论
-        comment = db.query(models.Comment).filter(models.Comment.comment_id == numeric_id).first()
-        if not comment:
-            raise HTTPException(status_code=404, detail="评论不存在")
-        
-        # 获取当前用户
-        current_user = user_manager.get_current_user()
-        
-        # 判断当前用户是否点赞了该评论
-        is_liked = False
-        if current_user:
-            is_liked = comment.is_human_user_liked == 1
-        
-        return create_response(data={
-            "commentId": comment_id,
-            "likes": comment.comment_likes,
-            "isLiked": is_liked
-        })
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"获取评论点赞信息失败: {e}")
-        raise HTTPException(status_code=500, detail="获取评论点赞信息失败")
+        logger.error(f"批量获取评论点赞统计失败: {e}")
+        raise HTTPException(status_code=500, detail="获取评论点赞统计失败")
 
 # WebSocket接口
 @app.websocket("/ws/updates")

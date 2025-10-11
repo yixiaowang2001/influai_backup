@@ -134,12 +134,14 @@
       background: white;
       border: 1px solid #e5e7eb;
       border-radius: 0.5rem;
-      padding: 1.5rem;
+      padding: 1rem 1.5rem;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
       transition: all 0.2s;
       cursor: pointer;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
+      align-items: center;
+      gap: 1rem;
     }
     
     .user-card:hover {
@@ -148,14 +150,14 @@
     }
     
     .user-card-avatar {
-      width: 60px;
-      height: 60px;
+      width: 50px;
+      height: 50px;
       border-radius: 50%;
       background-color: #f3f4f6;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 1rem;
+      flex-shrink: 0;
     }
     
     .user-card-avatar i {
@@ -163,33 +165,41 @@
       color: #6b7280;
     }
     
+    .user-card-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    
     .user-card-name {
       font-size: 1.125rem;
       font-weight: 600;
       color: #111827;
-      margin-bottom: 0.25rem;
     }
     
     .user-card-template {
       font-size: 0.875rem;
       color: #6b7280;
-      margin-bottom: 1rem;
+    }
+    
+    .user-card-followers {
+      font-size: 0.875rem;
+      color: #6b7280;
     }
     
     .user-card-description {
       color: #6b7280;
-      line-height: 1.5;
+      line-height: 1.4;
       font-size: 0.875rem;
-      flex: 1;
-      margin-bottom: 1rem;
+      margin-top: 0.5rem;
     }
     
     .user-card-enter {
-      margin-top: auto;
-      text-align: center;
       color: #111827;
       font-weight: 500;
       font-size: 0.875rem;
+      flex-shrink: 0;
     }
     
     /* 创建新账号卡片样式 */
@@ -316,22 +326,10 @@
     
     .user-selection-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.25rem;
-      max-width: 1000px;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      max-width: 800px;
       margin: 0 auto;
-    }
-    
-    @media (min-width: 768px) {
-      .user-selection-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-    
-    @media (min-width: 1024px) {
-      .user-selection-grid {
-        grid-template-columns: repeat(3, 1fr);
-      }
     }
     
     /* 模板选择页面样式 */

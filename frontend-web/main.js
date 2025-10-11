@@ -1249,11 +1249,14 @@ function renderUserSelectionPage() {
         <div class="user-card-avatar">
           <i class="fas fa-user"></i>
         </div>
-        <div class="user-card-name">${user.humanUsername}</div>
-        <div class="user-card-template">模板：${templateName}</div>
-        <div class="user-card-description">${templateDescription}</div>
+        <div class="user-card-content">
+          <div class="user-card-name">${user.humanUsername}</div>
+          <div class="user-card-template">模板：${templateName}</div>
+          <div class="user-card-followers">粉丝数：${user.followerCount}</div>
+          <div class="user-card-description">${templateDescription}</div>
+        </div>
         <div class="user-card-enter">
-          <i class="fas fa-gamepad mr-1"></i>点击进入游戏
+          点击进入
         </div>
       </div>
     `;
