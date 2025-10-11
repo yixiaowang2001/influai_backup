@@ -102,6 +102,22 @@ async function setCurrentUser(userId) {
   return response.data;
 }
 
+// 清除当前用户
+async function clearCurrentUser() {
+  const response = await apiCall('/user/clear-current', {
+    method: 'POST'
+  });
+  return response.data;
+}
+
+// 删除用户
+async function deleteUser(userId) {
+  const response = await apiCall(`/user/profile/${userId}`, {
+    method: 'DELETE'
+  });
+  return response.data;
+}
+
 // 获取帖子列表
 async function fetchPosts() {
   const response = await apiCall('/posts');
@@ -986,9 +1002,19 @@ function renderPosts(posts) {
   const postsContainer = document.getElementById('postsContainer');
   console.log('[DEBUG] 获取 postsContainer 元素:', !!postsContainer);
   
+  // 顶部导航栏HTML
+  const headerHTML = `
+    <div class="timeline-header">
+      <button onclick="backToUserSelection()" class="back-to-selection-btn">
+        <i class="fas fa-arrow-left"></i>
+        <span>返回账号选择</span>
+      </button>
+    </div>
+  `;
+  
   if (!posts || posts.length === 0) {
     console.log('[DEBUG] 无帖子，显示空状态');
-    postsContainer.innerHTML = `
+    postsContainer.innerHTML = headerHTML + `
       <div class="flex items-center justify-center py-8">
         <div class="text-gray-500">暂无帖子</div>
       </div>
@@ -997,7 +1023,7 @@ function renderPosts(posts) {
   }
   
   // 生成帖子HTML - 使用扁平样式，细灰线分隔
-  const htmlContent = posts.map(post => `
+  const postsHTML = posts.map(post => `
     <div class="post-item">
       <div class="p-4 cursor-pointer" onclick="viewPostDetail('${post.id}')">
         <div class="flex items-center mb-3">
@@ -1020,8 +1046,8 @@ function renderPosts(posts) {
     </div>
   `).join('');
   
-  console.log('[DEBUG] 设置 postsContainer.innerHTML，HTML长度:', htmlContent.length);
-  postsContainer.innerHTML = htmlContent;
+  console.log('[DEBUG] 设置 postsContainer.innerHTML，HTML长度:', (headerHTML + postsHTML).length);
+  postsContainer.innerHTML = headerHTML + postsHTML;
   console.log('[DEBUG] renderPosts 执行完成');
 }
 
@@ -1255,8 +1281,11 @@ function renderUserSelectionPage() {
           <div class="user-card-followers">粉丝数：${user.followerCount}</div>
           <div class="user-card-description">${templateDescription}</div>
         </div>
-        <div class="user-card-enter">
-          点击进入
+        <div class="user-card-actions">
+          <i class="fas fa-trash-alt delete-user-btn" onclick="event.stopPropagation(); showDeleteConfirmDialog(${user.humanUserId})"></i>
+          <div class="user-card-enter">
+            进入
+          </div>
         </div>
       </div>
     `;
@@ -1265,9 +1294,7 @@ function renderUserSelectionPage() {
   // 创建新账号卡片
   const createUserCard = `
     <div class="create-user-card" onclick="startCreateUser()">
-      <div class="create-user-icon">
-        <i class="fas fa-plus"></i>
-      </div>
+      <i class="fas fa-plus create-user-icon"></i>
       <div class="create-user-text">创建新账号</div>
     </div>
   `;
@@ -1292,7 +1319,7 @@ function renderUsernameInputPage() {
   const content = `
     <div class="username-input-page">
       <div class="username-input-header">
-        <div class="back-btn" onclick="backToUserSelection()">
+        <div class="back-btn" onclick="backToUserSelectionFromCreate()">
           <i class="fas fa-arrow-left text-xl"></i>
         </div>
         <h1 class="username-input-title">创建新账号</h1>
@@ -1306,7 +1333,7 @@ function renderUsernameInputPage() {
           maxlength="50"
         >
         <div class="username-input-buttons">
-          <button class="username-input-button secondary" onclick="backToUserSelection()">
+          <button class="username-input-button secondary" onclick="backToUserSelectionFromCreate()">
             返回
           </button>
           <button id="usernameSubmitBtn" class="username-input-button primary" disabled onclick="submitUsername()">
@@ -1432,11 +1459,42 @@ function submitUsername() {
   renderCurrentState();
 }
 
-// 返回用户选择界面
-function backToUserSelection() {
+// 返回用户选择界面（从创建用户流程）
+function backToUserSelectionFromCreate() {
   currentAppState = APP_STATES.USER_SELECTION;
   pendingUsername = null;
   renderCurrentState();
+}
+
+// 返回账号选择（从主应用）
+async function backToUserSelection() {
+  try {
+    // 清除后端的当前用户
+    await clearCurrentUser();
+    
+    // 清除前端状态
+    currentUser = null;
+    currentAppState = APP_STATES.USER_SELECTION;
+    currentView = 'timeline';
+    
+    // 关闭WebSocket连接
+    if (websocket) {
+      websocket.close();
+      websocket = null;
+    }
+    
+    // 隐藏发布框
+    togglePublishArea(false);
+    
+    // 重新加载用户列表并渲染
+    availableUsers = await getAllUsers();
+    renderCurrentState();
+    
+    showSuccessMessage('已退出当前账号');
+  } catch (error) {
+    console.error('返回账号选择失败:', error);
+    showErrorMessage('返回账号选择失败');
+  }
 }
 
 // 返回用户名输入界面
@@ -1482,5 +1540,82 @@ async function selectTemplate(templateId) {
   } catch (error) {
     console.error('创建用户失败:', error);
     showErrorMessage('创建用户失败，请重试');
+  }
+}
+
+// ===== 删除用户相关函数 =====
+
+// 存储待删除的用户信息
+let pendingDeleteUser = null;
+
+// 显示删除确认对话框
+function showDeleteConfirmDialog(userId) {
+  console.log('显示删除确认对话框:', userId);
+  
+  // 查找用户信息
+  const user = availableUsers.find(u => u.humanUserId === userId);
+  if (!user) {
+    console.error('未找到用户:', userId);
+    return;
+  }
+  
+  pendingDeleteUser = user;
+  
+  // 更新对话框内容
+  document.getElementById('deleteUserName').textContent = user.humanUsername;
+  
+  // 显示对话框
+  document.getElementById('deleteConfirmModal').classList.add('show');
+}
+
+// 隐藏删除确认对话框
+function hideDeleteConfirmDialog() {
+  console.log('隐藏删除确认对话框');
+  document.getElementById('deleteConfirmModal').classList.remove('show');
+  pendingDeleteUser = null;
+}
+
+// 确认删除用户
+async function confirmDeleteUser() {
+  if (!pendingDeleteUser) {
+    console.error('没有待删除的用户');
+    return;
+  }
+  
+  try {
+    console.log('开始删除用户:', pendingDeleteUser);
+    
+    // 调用删除API
+    const result = await deleteUser(pendingDeleteUser.humanUserId);
+    
+    console.log('删除用户成功:', result);
+    console.log('result.deletedPostsCount:', result.deletedPostsCount);
+    console.log('result.deletedAIUsersCount:', result.deletedAIUsersCount);
+    console.log('result.deletedCommentsCount:', result.deletedCommentsCount);
+    
+    // 保存用户名，因为hideDeleteConfirmDialog()会清空pendingDeleteUser
+    const deletedUsername = pendingDeleteUser.humanUsername;
+    
+    // 隐藏对话框
+    hideDeleteConfirmDialog();
+    
+    // 刷新用户列表
+    availableUsers = await getAllUsers();
+    renderCurrentState();
+    
+    // 显示成功消息
+    showSuccessMessage(`用户 ${deletedUsername} 删除成功！删除了 ${result.deletedPostsCount} 个帖子、${result.deletedAIUsersCount} 个AI用户、${result.deletedCommentsCount} 条评论`);
+    
+    // 如果删除的是当前用户，需要重新显示用户选择页面
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      currentAppState = APP_STATES.USER_SELECTION;
+      renderCurrentState();
+    }
+    
+  } catch (error) {
+    console.error('删除用户失败:', error);
+    hideDeleteConfirmDialog();
+    showErrorMessage('删除用户失败，请重试');
   }
 }

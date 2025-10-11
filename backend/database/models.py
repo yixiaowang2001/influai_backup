@@ -12,7 +12,7 @@ class Post(Base):
 
     post_id = Column(Integer, primary_key=True, index=True)
     post_content = Column(Text, nullable=False)
-    author_id = Column(Integer, ForeignKey("human_users.user_id"), nullable=False)
+    author_id = Column(Integer, ForeignKey("human_users.user_id", ondelete="CASCADE"), nullable=False)
     like_count = Column(Integer, default=0)
     is_human_user_liked = Column(Integer, default=0)  # 0表示未点赞，1表示已点赞
     created_at = Column(DateTime, default=datetime.now)
@@ -35,7 +35,7 @@ class AIUser(Base):
     username = Column(String(100), nullable=False)
     avatar_path = Column(String(255), default="")
     attitude_value = Column(Float, default=0.0)
-    human_user_id = Column(Integer, ForeignKey("human_users.user_id"), nullable=False)
+    human_user_id = Column(Integer, ForeignKey("human_users.user_id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.now)
 
     comments = relationship("Comment", back_populates="ai_user", foreign_keys="Comment.sender_id", primaryjoin="and_(AIUser.user_id==Comment.sender_id, Comment.sender_type=='ai_user')")
@@ -61,7 +61,7 @@ class Comment(Base):
     created_at = Column(DateTime, default=datetime.now)
     send_at = Column(DateTime, nullable=True)
 
-    post_id = Column(Integer, ForeignKey("posts.post_id"), nullable=False)
+    post_id = Column(Integer, ForeignKey("posts.post_id", ondelete="CASCADE"), nullable=False)
     sender_id = Column(String(36), nullable=False)  # 可以是AI用户ID或人类用户ID
     sender_type = Column(String(10), nullable=False)  # 'ai_user' 或 'human_user'
 

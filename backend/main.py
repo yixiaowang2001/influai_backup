@@ -636,6 +636,71 @@ async def set_current_user(user_data: SetCurrentUserRequest, db: Session = Depen
         raise HTTPException(status_code=500, detail="设置当前用户失败")
 
 
+@app.post("/user/clear-current",
+           summary="清除当前用户",
+           description="清除当前设置的全局用户状态，使系统回到无用户状态。",
+           response_description="清除成功返回确认信息",
+           tags=["用户管理"])
+async def clear_current_user():
+    """清除当前用户"""
+    try:
+        current_user = user_manager.get_current_user()
+        if current_user:
+            username = current_user.username
+            user_manager.current_human_user = None
+            logger.info(f"清除当前用户: {username}")
+            return create_response(message=f"已清除当前用户: {username}")
+        else:
+            return create_response(message="当前无用户需要清除")
+    except Exception as e:
+        logger.error(f"清除当前用户失败: {e}")
+        raise HTTPException(status_code=500, detail="清除当前用户失败")
+
+
+@app.delete("/user/profile/{human_user_id}",
+           summary="删除人类用户",
+           description="删除指定的人类用户及其所有关联数据（帖子、评论、AI用户）。此操作不可逆，请谨慎使用。",
+           response_description="删除成功返回删除统计信息",
+           tags=["用户管理"])
+async def delete_human_user(human_user_id: int, db: Session = Depends(get_db)):
+    """删除人类用户及其所有数据"""
+    try:
+        # 验证用户是否存在
+        human_user = crud.get_human_user_by_id(db, human_user_id)
+        if not human_user:
+            raise HTTPException(status_code=404, detail=f"未找到用户ID为 {human_user_id} 的用户")
+        
+        # 检查是否为当前用户，如果是则清除当前用户状态
+        current_user = user_manager.get_current_user()
+        if current_user and current_user.user_id == human_user_id:
+            user_manager.current_human_user = None
+            logger.info(f"清除当前用户状态，因为用户 {human_user.username} 被删除")
+        
+        # 执行删除操作
+        delete_result = crud.delete_human_user(db, human_user_id)
+        
+        logger.info(f"用户 {human_user.username} (ID: {human_user_id}) 删除成功")
+        
+        return create_response(data={
+            "message": "用户删除成功",
+            "deletedUserId": delete_result["deleted_user_id"],
+            "deletedUsername": delete_result["deleted_username"],
+            "deletedPostsCount": delete_result["deleted_posts_count"],
+            "deletedAIUsersCount": delete_result["deleted_ai_users_count"],
+            "deletedCommentsCount": delete_result["deleted_comments_count"],
+            "deletedHumanCommentsCount": delete_result["deleted_human_comments_count"],
+            "deletedAICommentsCount": delete_result["deleted_ai_comments_count"]
+        })
+        
+    except HTTPException:
+        # 重新抛出HTTPException，避免被通用异常处理捕获
+        raise
+    except ValueError as e:
+        logger.error(f"删除用户失败: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"删除用户失败: {e}")
+        raise HTTPException(status_code=500, detail="删除用户失败")
 
 
 # 帖子相关接口

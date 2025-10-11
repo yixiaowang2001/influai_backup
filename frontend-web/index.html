@@ -118,7 +118,106 @@
       font-weight: 500;
     }
     
+    /* 删除按钮样式 */
+    .delete-user-btn {
+      color: #dc2626;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 4px;
+      transition: all 0.2s;
+      font-size: 14px;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
     
+    .delete-user-btn:hover {
+      background-color: #fef2f2;
+      opacity: 1;
+      transform: scale(1.1);
+    }
+    
+    /* 确认删除对话框样式 */
+    .delete-confirm-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .delete-confirm-modal.show {
+      display: flex;
+    }
+    
+    .delete-confirm-dialog {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+    
+    .delete-confirm-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #dc2626;
+      margin-bottom: 12px;
+    }
+    
+    .delete-confirm-message {
+      color: #374151;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+    
+    .delete-confirm-warning {
+      background-color: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 4px;
+      padding: 12px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #991b1b;
+    }
+    
+    .delete-confirm-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+    
+    .delete-confirm-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .delete-confirm-btn.cancel {
+      background: #f3f4f6;
+      color: #374151;
+    }
+    
+    .delete-confirm-btn.cancel:hover {
+      background: #e5e7eb;
+    }
+    
+    .delete-confirm-btn.confirm {
+      background: #dc2626;
+      color: white;
+    }
+    
+    .delete-confirm-btn.confirm:hover {
+      background: #b91c1c;
+    }
     
     /* 账号选择页面样式 */
     .user-selection-title {
@@ -129,7 +228,7 @@
       margin-bottom: 2rem;
     }
     
-    /* 用户卡片样式 */
+    /* 用户卡片样式 - 宽扁布局 */
     .user-card {
       background: white;
       border: 1px solid #e5e7eb;
@@ -139,9 +238,9 @@
       transition: all 0.2s;
       cursor: pointer;
       display: flex;
-      flex-direction: row;
       align-items: center;
-      gap: 1rem;
+      position: relative;
+      min-height: 80px;
     }
     
     .user-card:hover {
@@ -157,11 +256,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      margin-right: 1rem;
       flex-shrink: 0;
     }
     
     .user-card-avatar i {
-      font-size: 1.5rem;
+      font-size: 1.25rem;
       color: #6b7280;
     }
     
@@ -169,53 +269,73 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 0.25rem;
+      justify-content: center;
+      min-width: 0;
     }
     
     .user-card-name {
-      font-size: 1.125rem;
+      font-size: 1rem;
       font-weight: 600;
       color: #111827;
+      margin-bottom: 0.25rem;
     }
     
     .user-card-template {
       font-size: 0.875rem;
       color: #6b7280;
+      margin-bottom: 0.25rem;
     }
     
     .user-card-followers {
       font-size: 0.875rem;
       color: #6b7280;
+      margin-bottom: 0.25rem;
     }
     
     .user-card-description {
       color: #6b7280;
       line-height: 1.4;
-      font-size: 0.875rem;
-      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .user-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
     }
     
     .user-card-enter {
       color: #111827;
       font-weight: 500;
       font-size: 0.875rem;
-      flex-shrink: 0;
+      padding: 0.5rem 1rem;
+      background: #f3f4f6;
+      border-radius: 0.375rem;
+      transition: all 0.2s;
     }
     
-    /* 创建新账号卡片样式 */
+    .user-card:hover .user-card-enter {
+      background: #e5e7eb;
+    }
+    
+    /* 创建新账号卡片样式 - 宽扁布局 */
     .create-user-card {
       background: white;
       border: 2px dashed #d1d5db;
       border-radius: 0.5rem;
-      padding: 2rem;
+      padding: 1rem 1.5rem;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
       transition: all 0.2s;
       cursor: pointer;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
+      min-height: 80px;
     }
     
     .create-user-card:hover {
@@ -224,13 +344,13 @@
     }
     
     .create-user-icon {
-      font-size: 2.5rem;
+      font-size: 1.5rem;
       color: #6b7280;
-      margin-bottom: 0.75rem;
+      margin-right: 0.75rem;
     }
     
     .create-user-text {
-      font-size: 1.125rem;
+      font-size: 1rem;
       font-weight: 500;
       color: #6b7280;
     }
@@ -319,15 +439,15 @@
       cursor: not-allowed;
     }
     
-    /* 更新用户选择页面为卡片网格布局 */
+    /* 更新用户选择页面为垂直列表布局 */
     .user-selection-page {
       padding: 2rem 1rem;
     }
     
     .user-selection-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
       max-width: 800px;
       margin: 0 auto;
     }
@@ -422,20 +542,72 @@
       from { opacity: 0; }
       to { opacity: 1; }
     }
+    
+    /* 时间线顶部导航栏样式 */
+    .timeline-header {
+      position: sticky;
+      top: 0;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      z-index: 50;
+    }
+
+    .back-to-selection-btn {
+      color: #6b7280;
+      cursor: pointer;
+      transition: color 0.2s;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    .back-to-selection-btn:hover {
+      color: #374151;
+    }
   </style>
 </head>
 <body class="min-h-screen">
   <div class="max-w-2xl mx-auto bg-white">
     <!-- 错误提示 -->
-    <div id="errorMessage" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+    <div id="errorMessage" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-[60]">
       <span id="errorText"></span>
       <button onclick="hideErrorMessage()" class="ml-2 text-white hover:text-gray-200">×</button>
     </div>
     
     <!-- 成功提示 -->
-    <div id="successMessage" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+    <div id="successMessage" class="hidden fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-[60]">
       <span id="successText"></span>
       <button onclick="hideSuccessMessage()" class="ml-2 text-white hover:text-gray-200">×</button>
+    </div>
+    
+    <!-- 删除确认对话框 -->
+    <div id="deleteConfirmModal" class="delete-confirm-modal">
+      <div class="delete-confirm-dialog">
+        <div class="delete-confirm-title">确认删除账号</div>
+        <div class="delete-confirm-message">
+          您确定要删除账号 <strong id="deleteUserName"></strong> 吗？
+        </div>
+        <div class="delete-confirm-warning">
+          <strong>警告：</strong>此操作将永久删除该账号的所有数据，包括：
+          <ul style="margin: 8px 0 0 16px;">
+            <li>所有发布的帖子</li>
+            <li>所有评论</li>
+            <li>所有AI用户及其评论</li>
+          </ul>
+          此操作不可逆，请谨慎操作！
+        </div>
+        <div class="delete-confirm-buttons">
+          <button class="delete-confirm-btn cancel" onclick="hideDeleteConfirmDialog()">取消</button>
+          <button class="delete-confirm-btn confirm" onclick="confirmDeleteUser()">确认删除</button>
+        </div>
+      </div>
     </div>
     
     <!-- 时间线帖子列表 -->

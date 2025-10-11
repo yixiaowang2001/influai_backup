@@ -96,11 +96,55 @@
 }
 ```
 
+### 2.5 清除当前用户
+**POST** `/user/clear-current`
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "已清除当前用户: STAR用户",
+  "data": null
+}
+```
+
+**说明:**
+- 清除当前设置的全局用户状态
+- 使系统回到无用户状态
+- 无需请求体参数
+
 **说明:**
 - 设置当前用户后，如果该用户没有对应的AI用户，系统会自动根据用户模板创建AI用户
 - AI用户数量为人类用户粉丝数的2倍
 - 每个人类用户都有独立的AI用户群体
 - 同时只能有一个当前用户，设置新用户会覆盖之前的用户
+
+### 2.5 删除人类用户
+**DELETE** `/user/profile/{humanUserId}`
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "message": "用户删除成功",
+    "deletedUserId": 1,
+    "deletedUsername": "测试用户",
+    "deletedPostsCount": 5,
+    "deletedAIUsersCount": 200000,
+    "deletedCommentsCount": 150,
+    "deletedHumanCommentsCount": 10,
+    "deletedAICommentsCount": 140
+  }
+}
+```
+
+**说明:**
+- 删除用户会同时删除该用户的所有帖子、评论和AI用户
+- 此操作不可逆，请谨慎使用
+- 如果删除的是当前用户，系统会自动清除当前用户状态
+- 返回删除统计信息，包括删除的帖子数、AI用户数、评论数等
 
 ---
 
