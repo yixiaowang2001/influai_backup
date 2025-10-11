@@ -35,22 +35,33 @@ let websocket = null;
 // 通用API调用函数
 async function apiCall(endpoint, options = {}) {
   try {
+    console.log(`[API] 调用: ${API_BASE_URL}${endpoint}`);
+    
+    // 创建超时控制器
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
         ...options.headers
       },
-      ...options
+      ...options,
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    console.log(`[API] 响应状态: ${response.status}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
     const data = await response.json();
+    console.log(`[API] 响应数据:`, data);
     return data;
   } catch (error) {
-    console.error('API调用失败:', endpoint, error);
+    console.error(`[API] 调用失败: ${endpoint}`, error);
     throw error;
   }
 }
@@ -69,8 +80,15 @@ async function getCurrentUser() {
 
 // 获取所有用户
 async function getAllUsers() {
-  const response = await apiCall('/user/profile');
-  return response.data;
+  console.log('[DEBUG] getAllUsers() 开始执行');
+  try {
+    const response = await apiCall('/user/profile');
+    console.log('[DEBUG] getAllUsers() API调用成功，返回数据:', response);
+    return response.data;
+  } catch (error) {
+    console.error('[DEBUG] getAllUsers() 失败:', error);
+    throw error;
+  }
 }
 
 // 设置当前用户
@@ -130,8 +148,15 @@ async function likeComment(commentId) {
 
 // 获取用户模板列表
 async function getUserTemplates() {
-  const response = await apiCall('/user-templates');
-  return response.data;
+  console.log('[DEBUG] getUserTemplates() 开始执行');
+  try {
+    const response = await apiCall('/user-templates');
+    console.log('[DEBUG] getUserTemplates() API调用成功，返回数据:', response);
+    return response.data;
+  } catch (error) {
+    console.error('[DEBUG] getUserTemplates() 失败:', error);
+    throw error;
+  }
 }
 
 // 创建新用户
@@ -323,13 +348,24 @@ function updateCommentLikes(commentId, likes, isLiked) {
 
 // 页面加载完成后初始化
 window.addEventListener('DOMContentLoaded', async () => {
+  console.log('[DEBUG] DOM加载完成，开始初始化应用');
+  
   const commentInput = document.getElementById('postContent');
   const postButton = document.getElementById('postButton');
   const charCount = document.getElementById('charCount');
   const postsContainer = document.getElementById('postsContainer');
   
+  console.log('[DEBUG] 页面元素检查:', {
+    commentInput: !!commentInput,
+    postButton: !!postButton,
+    charCount: !!charCount,
+    postsContainer: !!postsContainer
+  });
+  
   // 初始化应用
+  console.log('[DEBUG] 开始调用 initializeApp()');
   await initializeApp();
+  console.log('[DEBUG] initializeApp() 调用完成');
   
   // 输入框内容变化监听
   commentInput.addEventListener('input', () => {
@@ -386,11 +422,39 @@ async function initializeApp() {
     
     // 并行获取所有初始化数据
     console.log('[DEBUG] 开始并行获取初始化数据');
-    const [users, templates, existingUser] = await Promise.all([
-      getAllUsers(),
-      getUserTemplates(), 
-      getCurrentUser()
-    ]);
+    
+    // 分别调用API，便于调试
+    let users = [];
+    let templates = [];
+    let existingUser = null;
+    
+    try {
+      console.log('[DEBUG] 调用 getAllUsers()');
+      users = await getAllUsers();
+      console.log('[DEBUG] getAllUsers() 完成，用户数量:', users?.length);
+    } catch (error) {
+      console.error('[DEBUG] getAllUsers() 失败:', error);
+      users = [];
+    }
+    
+    try {
+      console.log('[DEBUG] 调用 getUserTemplates()');
+      templates = await getUserTemplates();
+      console.log('[DEBUG] getUserTemplates() 完成，模板数量:', templates?.length);
+    } catch (error) {
+      console.error('[DEBUG] getUserTemplates() 失败:', error);
+      templates = [];
+    }
+    
+    try {
+      console.log('[DEBUG] 调用 getCurrentUser()');
+      existingUser = await getCurrentUser();
+      console.log('[DEBUG] getCurrentUser() 完成，现有用户:', !!existingUser);
+    } catch (error) {
+      console.error('[DEBUG] getCurrentUser() 失败:', error);
+      existingUser = null;
+    }
+    
     console.log('[DEBUG] 初始化数据获取完成', { users: users?.length, templates: templates?.length, existingUser: !!existingUser });
     
     availableUsers = users;
@@ -417,12 +481,9 @@ async function initializeApp() {
       console.log('[DEBUG] 无现有用户，进入用户选择流程');
       // 没有当前用户，进入用户选择状态
       currentAppState = APP_STATES.USER_SELECTION;
-      // 先渲染一次（可能显示加载状态）
+      // 数据已经加载完成，直接渲染用户选择页面
+      console.log('[DEBUG] 渲染用户选择页面，用户数量:', availableUsers?.length);
       renderCurrentState();
-      // 确保数据加载完成后再次渲染
-      if (availableUsers.length > 0) {
-        renderCurrentState();
-      }
       togglePublishArea(false);
     }
     
@@ -430,6 +491,13 @@ async function initializeApp() {
   } catch (error) {
     console.error('[DEBUG] 应用初始化失败:', error);
     showErrorState(`应用初始化失败: ${error.message}`);
+    
+    // 显示详细的错误信息到控制台
+    console.error('详细错误信息:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
   }
 }
 
@@ -1026,10 +1094,15 @@ function renderCurrentState() {
 
 // 渲染用户选择页面
 function renderUserSelectionPage() {
+  console.log('[DEBUG] renderUserSelectionPage() 开始执行');
+  console.log('[DEBUG] availableUsers:', availableUsers);
+  console.log('[DEBUG] availableUsers.length:', availableUsers?.length);
+  
   const postsContainer = document.getElementById('postsContainer');
   
   // 如果数据还没加载完成，显示加载状态
   if (!availableUsers || availableUsers.length === 0) {
+    console.log('[DEBUG] 用户数据为空，显示加载状态');
     postsContainer.innerHTML = `
       <div class="user-selection-page">
         <div class="flex items-center justify-center py-8">
@@ -1039,6 +1112,8 @@ function renderUserSelectionPage() {
     `;
     return;
   }
+  
+  console.log('[DEBUG] 用户数据存在，渲染用户选择界面');
   
   const content = `
     <div class="user-selection-page">

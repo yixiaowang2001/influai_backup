@@ -177,10 +177,10 @@ def cleanup_frontend_processes():
     # 方法2: 根据进程特征清理
     try:
         subprocess.run([
-            'pkill', '-f', 'python.*http\.server.*3000'
+            'pkill', '-f', r'python.*http\.server.*3000'
         ], capture_output=True)
         subprocess.run([
-            'pkill', '-f', 'python.*-m.*http\.server'
+            'pkill', '-f', r'python.*-m.*http\.server'
         ], capture_output=True)
     except Exception as e:
         logger.warning(f"根据进程特征清理时出现警告: {e}")
