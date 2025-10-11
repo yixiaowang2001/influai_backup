@@ -5,13 +5,13 @@ InfluAI 评论筛选测试脚本
 
 功能：
 - 从数据库获取评论数据
-- 基于态度和长度系数筛选重要评论
+- 基于态度权重与长度钟形系数筛选重要评论
 - 支持不同层级的评论筛选
 - 提供详细的测试和统计功能
 
 使用方法：
 1. 确保已配置好数据库和API密钥
-2. 运行脚本：python test_lvn.py
+2. 运行脚本：python backend/test/test_select.py
 3. 观察评论筛选过程和结果
 """
 
@@ -30,6 +30,75 @@ from backend.models import Attitude
 from backend.database.database import get_db
 from backend.database import crud
 from backend.database import models
+
+
+# 长度钟形系数（10-50字最佳）
+def get_length_bell_coefficient(comment: str) -> float:
+    L = len(comment)
+    peak = 1.4
+    floor = 0.6
+    center = 30.0
+    sigma = 14.0
+    bell = math.exp(-((L - center) ** 2) / (2 * sigma * sigma))
+    return floor + (peak - floor) * bell
+
+
+# 统一态度权重（与平台观感更接近，可按需调整）
+ATTITUDE_WEIGHT = {
+    Attitude.BAD: 0.80,  # 极差
+    Attitude.NEUTRAL_NEGATIVE: 0.65,  # 不友善
+    Attitude.PERFECT: 0.62,  # 狂热
+    Attitude.GOOD: 0.60,  # 极好
+    Attitude.NEUTRAL_POSITIVE: 0.58,  # 友善
+    Attitude.NEUTRAL: 0.55,  # 中立
+}
+
+
+def get_attitude_weight(attitude: Attitude) -> float:
+    return ATTITUDE_WEIGHT.get(attitude, 0.55)
+
+
+# 整体评分方法（态度×钟形长度）
+def compute_comment_score(comment: str, attitude: Attitude) -> float:
+    attitude_coeff = get_attitude_weight(attitude)
+    length_coeff = get_length_bell_coefficient(comment)
+    return attitude_coeff * length_coeff
+
+
+# 态度配额筛选（限制负向情绪占比）
+def select_with_attitude_quota(
+        items: List[Tuple[str, float, Attitude]],
+        k: int,
+        max_negative_ratio: float = 0.4,
+) -> List[Tuple[str, float, Attitude]]:
+    # 定义“负向/强烈”集合：极差、不友善、狂热
+    negative_set = {Attitude.BAD, Attitude.NEUTRAL_NEGATIVE, Attitude.PERFECT}
+
+    items_sorted = sorted(items, key=lambda x: x[1], reverse=True)
+    selected: List[Tuple[str, float, Attitude]] = []
+
+    negative_cap = int(k * max_negative_ratio)
+    negative_used = 0
+
+    for content, score, attitude in items_sorted:
+        if len(selected) >= k:
+            break
+        if attitude in negative_set:
+            if negative_used >= negative_cap:
+                continue
+            negative_used += 1
+        selected.append((content, score, attitude))
+
+    # 若不足k，可放宽：这里简单回填剩余（不再区分配额）
+    if len(selected) < k:
+        for content, score, attitude in items_sorted:
+            if len(selected) >= k:
+                break
+            if (content, score, attitude) in selected:
+                continue
+            selected.append((content, score, attitude))
+
+    return selected
 
 
 def get_comments_from_database(post_id: int, parent_comment_id: Optional[int] = None) -> List[Tuple[str, Attitude]]:
@@ -84,43 +153,6 @@ def get_comments_from_database(post_id: int, parent_comment_id: Optional[int] = 
     return comments
 
 
-def get_attitude_coefficient(attitude: Attitude) -> float:
-    """根据态度计算系数"""
-    attitude_coeff_map = {
-        Attitude.BAD: 0.9,  # 极差态度 - 最高系数
-        Attitude.PERFECT: 0.7,  # 狂热态度 - 高系数
-        Attitude.GOOD: 0.5,  # 极好态度 - 中等系数
-        Attitude.NEUTRAL_NEGATIVE: 0.6,  # 不友善态度 - 高系数
-        Attitude.NEUTRAL: 0.3,  # 中立态度 - 中等系数
-        Attitude.NEUTRAL_POSITIVE: 0.1  # 友善态度 - 低系数
-    }
-    return attitude_coeff_map.get(attitude, 0.1)
-
-
-def get_length_coefficient(comment: str) -> float:
-    """
-    根据评论长度计算系数
-    
-    评论越长，系数越高，但20字后权重增加量递减
-    使用分段函数实现递减增长
-    """
-    length = len(comment)
-
-    # 长度系数范围: 0.5 - 1.8
-    if length <= 10:
-        return 0.5
-    elif length <= 20:
-        # 10-20字符：线性增长 0.5-1.0
-        return 0.5 + (length - 10) * 0.5 / 10
-    elif length <= 50:
-        # 20-50字符：递减增长 1.0-1.4
-        progress = (length - 20) / 30
-        return 1.0 + 0.4 * math.sqrt(progress)
-    else:
-        # 50字符以上：极缓慢增长 1.4-1.8
-        return 1.4 + 0.4 * math.log(length - 49) / math.log(200)
-
-
 def filter_important_comments_from_db(post_id: int, parent_comment_id: Optional[int] = None, filter_count: int = 10) -> \
         List[Tuple[str, float, Attitude]]:
     """
@@ -141,36 +173,15 @@ def filter_important_comments_from_db(post_id: int, parent_comment_id: Optional[
         print(f"未找到评论数据 - 帖子ID: {post_id}, 父评论ID: {parent_comment_id}")
         return []
 
-    # 将评论按态度分类
-    attitude_comments = Attitude.create_dict()
+    # 计算每条评论的综合分
+    comment_scores: List[Tuple[str, float, Attitude]] = []
     for content, attitude in comments_data:
-        attitude_comments[attitude].append(content)
+        score = compute_comment_score(content, attitude)
+        comment_scores.append((content, score, attitude))
 
-    # 计算总评论数
-    total_comments = len(comments_data)
-    target_count = min(filter_count, total_comments)
-
-    print(f"数据库查询结果 - 帖子ID: {post_id}, 父评论ID: {parent_comment_id}")
-    print(f"总评论数: {total_comments}, 目标筛选数: {target_count}")
-
-    # 计算每个评论的综合系数
-    comment_scores = []
-
-    for attitude, comments in attitude_comments.items():
-        if not comments:
-            continue
-
-        attitude_coeff = get_attitude_coefficient(attitude)
-
-        for comment in comments:
-            length_coeff = get_length_coefficient(comment)
-            combined_score = attitude_coeff * length_coeff
-            comment_scores.append((comment, combined_score, attitude))
-
-    # 按综合系数降序排序
-    comment_scores.sort(key=lambda x: x[1], reverse=True)
-
-    return comment_scores[:target_count]
+    # 先整体排序，再做态度配额约束选择
+    selected = select_with_attitude_quota(comment_scores, k=min(filter_count, len(comment_scores)))
+    return selected
 
 
 def print_all_comments(post_id: int, parent_comment_id: Optional[int] = None):
@@ -239,15 +250,15 @@ def test_coefficients():
     """测试系数算法"""
     print("=== 测试系数算法 ===")
 
-    # 测试态度系数
-    print("\n态度系数:")
+    # 测试态度权重
+    print("\n态度权重:")
     attitudes = [Attitude.BAD, Attitude.NEUTRAL_NEGATIVE, Attitude.PERFECT,
                  Attitude.GOOD, Attitude.NEUTRAL, Attitude.NEUTRAL_POSITIVE]
     for attitude in attitudes:
-        coeff = get_attitude_coefficient(attitude)
+        coeff = get_attitude_weight(attitude)
         print(f"  {str(attitude):8s}: {coeff:.3f}")
 
-    # 测试长度系数
+    # 测试长度钟形系数
     print("\n长度系数测试:")
     test_comments = [
         "短评论",  # 3字
@@ -260,17 +271,11 @@ def test_coefficients():
 
     for comment in test_comments:
         length = len(comment)
-        coeff = get_length_coefficient(comment)
+        coeff = get_length_bell_coefficient(comment)
         print(f"  长度: {length:2d}字, 系数: {coeff:.3f}, 内容: {comment[:20]}...")
 
     print("\n=== 筛选机制说明 ===")
-    print("评论筛选完全基于综合系数排序（态度系数 × 长度系数）")
-    print("极差评论系数：0.9（最高权重）")
-    print("不友善评论系数：0.6（高权重）")
-    print("狂热评论系数：0.7（高权重）")
-    print("极好评论系数：0.5（中等权重）")
-    print("中立评论系数：0.3（低权重）")
-    print("友善评论系数：0.1（最低权重）")
+    print("评论筛选基于综合分排序（统一态度权重 × 钟形长度系数[10-50字最佳]）+ 态度配额约束")
 
 
 if __name__ == "__main__":
@@ -288,4 +293,4 @@ if __name__ == "__main__":
     print("\n" + "=" * 80 + "\n")
 
     # 测试筛选算法
-    test_filter_comments_from_db(post_id=1, filter_count=10)
+    test_filter_comments_from_db(post_id=1, filter_count=5)
