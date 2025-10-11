@@ -118,122 +118,19 @@
       font-weight: 500;
     }
     
-    /* 用户选择/创建页面样式 */
-    .user-selection-page {
-      padding: 2rem 1rem;
-    }
     
-    .existing-users-section,
-    .create-user-section {
+    
+    /* 账号选择页面样式 */
+    .user-selection-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #374151;
+      text-align: center;
       margin-bottom: 2rem;
     }
     
-    .section-title {
-      font-size: 1.125rem;
-      font-weight: 600;
-      color: #374151;
-      margin-bottom: 1rem;
-      text-align: center;
-    }
-    
-    .user-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      max-width: 600px;
-      margin: 0 auto;
-      gap: 0.75rem;
-      justify-content: center;
-    }
-    
-    @media (min-width: 640px) {
-      .user-grid {
-        grid-template-columns: repeat(4, 1fr);
-      }
-    }
-    
-    .user-button {
-      padding: 0.75rem 1rem;
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 0.375rem;
-      color: #374151;
-      cursor: pointer;
-      transition: all 0.2s;
-      text-align: center;
-      font-weight: 500;
-    }
-    
-    .user-button:hover {
-      background-color: #f9fafb;
-      border-color: #d1d5db;
-    }
-    
-    .create-user-form {
-      max-width: 400px;
-      margin: 0 auto;
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-    }
-    
-    .user-input {
-      flex: 1;
-      padding: 0.75rem;
-      border: 1px solid #e5e7eb;
-      border-radius: 0.375rem;
-      font-size: 1rem;
-      font-family: 'Noto Sans SC', sans-serif;
-    }
-    
-    .user-input:focus {
-      outline: none;
-      border-color: #6b7280;
-      box-shadow: 0 0 0 1px #6b7280;
-    }
-    
-    .create-button {
-      padding: 0.75rem 1.5rem;
-      background: #000;
-      color: white;
-      border: none;
-      border-radius: 0.375rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-family: 'Noto Sans SC', sans-serif;
-    }
-    
-    .create-button:hover:not(:disabled) {
-      background: #374151;
-    }
-    
-    .create-button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    
-    /* 模板选择页面样式 */
-    .template-selection-page {
-      padding: 2rem 1rem;
-    }
-    
-    .template-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    
-    @media (min-width: 768px) {
-      .template-grid {
-        flex-direction: row;
-        gap: 1.5rem;
-      }
-    }
-    
-    .template-card {
-      flex: 1;
+    /* 用户卡片样式 */
+    .user-card {
       background: white;
       border: 1px solid #e5e7eb;
       border-radius: 0.5rem;
@@ -245,28 +142,258 @@
       flex-direction: column;
     }
     
+    .user-card:hover {
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      border-color: #d1d5db;
+    }
+    
+    .user-card-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background-color: #f3f4f6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+    
+    .user-card-avatar i {
+      font-size: 1.5rem;
+      color: #6b7280;
+    }
+    
+    .user-card-name {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 0.25rem;
+    }
+    
+    .user-card-template {
+      font-size: 0.875rem;
+      color: #6b7280;
+      margin-bottom: 1rem;
+    }
+    
+    .user-card-description {
+      color: #6b7280;
+      line-height: 1.5;
+      font-size: 0.875rem;
+      flex: 1;
+      margin-bottom: 1rem;
+    }
+    
+    .user-card-enter {
+      margin-top: auto;
+      text-align: center;
+      color: #111827;
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+    
+    /* 创建新账号卡片样式 */
+    .create-user-card {
+      background: white;
+      border: 2px dashed #d1d5db;
+      border-radius: 0.5rem;
+      padding: 2rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    
+    .create-user-card:hover {
+      border-color: #6b7280;
+      background-color: #f9fafb;
+    }
+    
+    .create-user-icon {
+      font-size: 2.5rem;
+      color: #6b7280;
+      margin-bottom: 0.75rem;
+    }
+    
+    .create-user-text {
+      font-size: 1.125rem;
+      font-weight: 500;
+      color: #6b7280;
+    }
+    
+    /* 用户名输入页面样式 */
+    .username-input-page {
+      padding: 2rem 1rem;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    
+    .username-input-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+    
+    .username-input-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #374151;
+      margin-left: 1rem;
+    }
+    
+    .username-input-form {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    .username-input-field {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.375rem;
+      font-size: 1rem;
+      font-family: 'Noto Sans SC', sans-serif;
+      margin-bottom: 1rem;
+    }
+    
+    .username-input-field:focus {
+      outline: none;
+      border-color: #6b7280;
+      box-shadow: 0 0 0 1px #6b7280;
+    }
+    
+    .username-input-buttons {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: space-between;
+    }
+    
+    .username-input-button {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border: none;
+      border-radius: 0.375rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Noto Sans SC', sans-serif;
+    }
+    
+    .username-input-button.secondary {
+      background: #f3f4f6;
+      color: #374151;
+    }
+    
+    .username-input-button.secondary:hover {
+      background: #e5e7eb;
+    }
+    
+    .username-input-button.primary {
+      background: #000;
+      color: white;
+    }
+    
+    .username-input-button.primary:hover:not(:disabled) {
+      background: #374151;
+    }
+    
+    .username-input-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    /* 更新用户选择页面为卡片网格布局 */
+    .user-selection-page {
+      padding: 2rem 1rem;
+    }
+    
+    .user-selection-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    
+    @media (min-width: 768px) {
+      .user-selection-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    
+    @media (min-width: 1024px) {
+      .user-selection-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+    
+    /* 模板选择页面样式 */
+    .template-selection-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+    
+    .back-btn {
+      color: #6b7280;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    
+    .back-btn:hover {
+      color: #374151;
+    }
+    
+    .template-selection-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #374151;
+      margin-left: 1rem;
+    }
+    
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+    }
+    
+    .template-card {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    
     .template-card:hover {
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
       border-color: #d1d5db;
     }
     
-    .template-name {
+    .template-card-name {
       font-size: 1.25rem;
       font-weight: 600;
       color: #111827;
-      margin: 0 0 1rem 0;
-      text-align: center;
+      margin-bottom: 0.75rem;
     }
     
-    .template-description {
-      flex: 1;
+    .template-card-desc {
+      font-size: 0.875rem;
       color: #6b7280;
       line-height: 1.6;
-      margin-bottom: 1.5rem;
-      font-size: 0.875rem;
+      margin-bottom: 1.25rem;
     }
     
-    .template-select-button {
+    .template-card-select {
       width: 100%;
       padding: 0.75rem;
       background: #000;
@@ -279,8 +406,23 @@
       font-family: 'Noto Sans SC', sans-serif;
     }
     
-    .template-select-button:hover {
+    .template-card-select:hover {
       background: #374151;
+    }
+    
+    /* 页面切换过渡 */
+    .page {
+      display: none;
+    }
+    
+    .page.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
   </style>
 </head>

@@ -11,6 +11,7 @@ let currentUser = null;
 // 应用状态枚举
 const APP_STATES = {
   USER_SELECTION: 'user_selection',
+  USERNAME_INPUT: 'username_input',
   TEMPLATE_SELECTION: 'template_selection',
   MAIN_APP: 'main_app'
 };
@@ -26,6 +27,7 @@ let currentSortOrder = 'time'; // 'time' 或 'likes'
 let availableUsers = [];
 let availableTemplates = [];
 let selectedUser = null;
+let pendingUsername = null;
 
 // WebSocket连接
 let websocket = null;
@@ -146,6 +148,36 @@ async function likeComment(commentId) {
   return response.data;
 }
 
+// 批量获取帖子点赞信息
+async function fetchPostsLikes(postIds) {
+  const response = await apiCall('/posts/likes-stats', {
+    method: 'POST',
+    body: JSON.stringify({ post_ids: postIds })
+  });
+  return response.data;
+}
+
+// 获取单个帖子点赞信息
+async function fetchPostLikes(postId) {
+  const response = await apiCall(`/posts/${postId}/likes`);
+  return response.data;
+}
+
+// 批量获取评论点赞信息
+async function fetchCommentsLikes(commentIds) {
+  const response = await apiCall('/comments/likes-stats', {
+    method: 'POST',
+    body: JSON.stringify({ comment_ids: commentIds })
+  });
+  return response.data;
+}
+
+// 获取单个评论点赞信息
+async function fetchCommentLikes(commentId) {
+  const response = await apiCall(`/comments/${commentId}/likes`);
+  return response.data;
+}
+
 // 获取用户模板列表
 async function getUserTemplates() {
   console.log('[DEBUG] getUserTemplates() 开始执行');
@@ -223,10 +255,25 @@ function handleWebSocketMessage(message) {
   switch (message.type) {
     case 'new_post':
       // 新帖子，添加到列表顶部
-      userPosts.unshift(message.data);
-      if (currentView === 'timeline') {
-        renderPosts(userPosts);
-      }
+      const newPost = message.data;
+      // 异步获取点赞信息
+      fetchPostLikes(newPost.id).then(likeInfo => {
+        newPost.likes = likeInfo.likes;
+        newPost.isLiked = likeInfo.isLiked;
+        userPosts.unshift(newPost);
+        if (currentView === 'timeline') {
+          renderPosts(userPosts);
+        }
+      }).catch(error => {
+        console.error('获取新帖子点赞信息失败:', error);
+        // 使用默认值
+        newPost.likes = 0;
+        newPost.isLiked = false;
+        userPosts.unshift(newPost);
+        if (currentView === 'timeline') {
+          renderPosts(userPosts);
+        }
+      });
       break;
       
     case 'post_like_update':
@@ -277,35 +324,76 @@ function updatePostLikes(postId, likes, isLiked) {
 function handleAICommentPush(data) {
   console.log('[DEBUG] handleAICommentPush 收到推送:', data.postId, '当前视图:', currentView);
   
-  // 如果在详情页且是当前帖子的评论，直接添加评论到界面
-  if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
-    console.log('[DEBUG] 在详情页，添加评论到详情页');
+  // 异步获取评论点赞信息
+  fetchCommentLikes(data.comment.id).then(likeInfo => {
+    data.comment.likes = likeInfo.likes;
+    data.comment.isLiked = likeInfo.isLiked;
     
-    // 直接添加评论到当前帖子的评论列表
-    if (!currentPost.comments) {
-      currentPost.comments = [];
+    // 如果在详情页且是当前帖子的评论，直接添加评论到界面
+    if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
+      console.log('[DEBUG] 在详情页，添加评论到详情页');
+      
+      // 直接添加评论到当前帖子的评论列表
+      if (!currentPost.comments) {
+        currentPost.comments = [];
+      }
+      currentPost.comments.push(data.comment);
+      
+      // 重新渲染详情页
+      renderPostDetail(currentPost);
     }
-    currentPost.comments.push(data.comment);
     
-    // 重新渲染详情页
-    renderPostDetail(currentPost);
-  }
-  
-  // 更新帖子的评论数
-  const post = userPosts.find(p => p.id === data.postId);
-  if (post) {
-    console.log('[DEBUG] 找到帖子，当前评论数:', post.commentsCount, '即将加1');
-    // 评论数加1
-    post.commentsCount = (post.commentsCount || 0) + 1;
-    console.log('[DEBUG] 更新后评论数:', post.commentsCount);
-    
-    if (currentView === 'timeline') {
-      console.log('[DEBUG] 在时间线视图，重新渲染帖子列表');
-      renderPosts(userPosts);
+    // 更新帖子的评论数
+    const post = userPosts.find(p => p.id === data.postId);
+    if (post) {
+      console.log('[DEBUG] 找到帖子，当前评论数:', post.commentsCount, '即将加1');
+      // 评论数加1
+      post.commentsCount = (post.commentsCount || 0) + 1;
+      console.log('[DEBUG] 更新后评论数:', post.commentsCount);
+      
+      if (currentView === 'timeline') {
+        console.log('[DEBUG] 在时间线视图，重新渲染帖子列表');
+        renderPosts(userPosts);
+      }
+    } else {
+      console.log('[DEBUG] 未找到对应帖子:', data.postId);
     }
-  } else {
-    console.log('[DEBUG] 未找到对应帖子:', data.postId);
-  }
+  }).catch(error => {
+    console.error('获取新评论点赞信息失败:', error);
+    // 使用默认值
+    data.comment.likes = 0;
+    data.comment.isLiked = false;
+    
+    // 如果在详情页且是当前帖子的评论，直接添加评论到界面
+    if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
+      console.log('[DEBUG] 在详情页，添加评论到详情页');
+      
+      // 直接添加评论到当前帖子的评论列表
+      if (!currentPost.comments) {
+        currentPost.comments = [];
+      }
+      currentPost.comments.push(data.comment);
+      
+      // 重新渲染详情页
+      renderPostDetail(currentPost);
+    }
+    
+    // 更新帖子的评论数
+    const post = userPosts.find(p => p.id === data.postId);
+    if (post) {
+      console.log('[DEBUG] 找到帖子，当前评论数:', post.commentsCount, '即将加1');
+      // 评论数加1
+      post.commentsCount = (post.commentsCount || 0) + 1;
+      console.log('[DEBUG] 更新后评论数:', post.commentsCount);
+      
+      if (currentView === 'timeline') {
+        console.log('[DEBUG] 在时间线视图，重新渲染帖子列表');
+        renderPosts(userPosts);
+      }
+    } else {
+      console.log('[DEBUG] 未找到对应帖子:', data.postId);
+    }
+  });
 }
 
 // 处理评论推送完成通知
@@ -506,13 +594,28 @@ async function loadPosts() {
   try {
     console.log('[DEBUG] loadPosts 开始执行');
     
-    // 直接加载帖子数据（现在包含正确的评论数）
+    // 先获取帖子内容
     console.log('[DEBUG] 调用 fetchPosts()');
     userPosts = await fetchPosts();
     console.log('[DEBUG] fetchPosts() 完成，获得帖子数量:', userPosts?.length);
     
+    // 提取帖子ID并批量获取点赞信息
+    if (userPosts && userPosts.length > 0) {
+      const postIds = userPosts.map(post => post.id);
+      console.log('[DEBUG] 调用 fetchPostsLikes()');
+      const likesData = await fetchPostsLikes(postIds);
+      console.log('[DEBUG] fetchPostsLikes() 完成');
+      
+      // 合并点赞信息到帖子数据
+      userPosts.forEach(post => {
+        const likeInfo = likesData[post.id] || { likes: 0, isLiked: false };
+        post.likes = likeInfo.likes;
+        post.isLiked = likeInfo.isLiked;
+      });
+    }
+    
     console.log('[DEBUG] 调用 renderPosts()');
-    renderPosts(userPosts);  // 立即显示帖子，包含正确的评论数
+    renderPosts(userPosts);  // 显示帖子，包含内容和点赞信息
     console.log('[DEBUG] renderPosts() 完成');
     
     // 注意：新发布的帖子的评论会通过WebSocket实时推送更新
@@ -837,7 +940,22 @@ async function loadCommentsForCurrentPost() {
   if (!currentPost) return;
   
   try {
+    // 先获取评论内容
     const comments = await fetchComments(currentPost.id, currentSortOrder);
+    
+    // 提取评论ID并批量获取点赞信息
+    if (comments && comments.length > 0) {
+      const commentIds = comments.map(comment => comment.id);
+      const likesData = await fetchCommentsLikes(commentIds);
+      
+      // 合并点赞信息到评论数据
+      comments.forEach(comment => {
+        const likeInfo = likesData[comment.id] || { likes: 0, isLiked: false };
+        comment.likes = likeInfo.likes;
+        comment.isLiked = likeInfo.isLiked;
+      });
+    }
+    
     currentPost.comments = comments;
     renderPostDetail(currentPost);
   } catch (error) {
@@ -1073,6 +1191,10 @@ function renderCurrentState() {
       console.log('[DEBUG] 渲染用户选择页面');
       renderUserSelectionPage();
       break;
+    case APP_STATES.USERNAME_INPUT:
+      console.log('[DEBUG] 渲染用户名输入页面');
+      renderUsernameInputPage();
+      break;
     case APP_STATES.TEMPLATE_SELECTION:
       console.log('[DEBUG] 渲染模板选择页面');
       renderTemplateSelectionPage();
@@ -1101,8 +1223,8 @@ function renderUserSelectionPage() {
   const postsContainer = document.getElementById('postsContainer');
   
   // 如果数据还没加载完成，显示加载状态
-  if (!availableUsers || availableUsers.length === 0) {
-    console.log('[DEBUG] 用户数据为空，显示加载状态');
+  if (!availableUsers) {
+    console.log('[DEBUG] 用户数据未加载，显示加载状态');
     postsContainer.innerHTML = `
       <div class="user-selection-page">
         <div class="flex items-center justify-center py-8">
@@ -1115,31 +1237,77 @@ function renderUserSelectionPage() {
   
   console.log('[DEBUG] 用户数据存在，渲染用户选择界面');
   
-  const content = `
-    <div class="user-selection-page">
-      <div class="existing-users-section">
-        <h2 class="section-title">选择用户</h2>
-        <div class="user-grid">
-          ${availableUsers.map(user => `
-            <button class="user-button" onclick="selectExistingUser(${user.humanUserId})">
-              ${user.humanUsername}
-            </button>
-          `).join('')}
+  // 生成用户卡片（如果有用户的话）
+  const userCards = availableUsers.length > 0 ? availableUsers.map(user => {
+    // 查找对应的模板信息
+    const template = availableTemplates.find(t => t.id === user.userTemplateId);
+    const templateName = template ? template.name : '未知模板';
+    const templateDescription = template ? template.persona.substring(0, 100) + '...' : '暂无描述';
+    
+    return `
+      <div class="user-card" onclick="selectExistingUser(${user.humanUserId})">
+        <div class="user-card-avatar">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="user-card-name">${user.humanUsername}</div>
+        <div class="user-card-template">模板：${templateName}</div>
+        <div class="user-card-description">${templateDescription}</div>
+        <div class="user-card-enter">
+          <i class="fas fa-gamepad mr-1"></i>点击进入游戏
         </div>
       </div>
-      
-      <div class="create-user-section">
-        <h2 class="section-title">创建新用户</h2>
-        <div class="create-user-form">
-          <input 
-            type="text" 
-            id="usernameInput" 
-            class="user-input" 
-            placeholder="输入用户名"
-            maxlength="50"
-          >
-          <button id="createUserBtn" class="create-button" disabled onclick="validateUsername()">
-            创建
+    `;
+  }).join('') : '';
+  
+  // 创建新账号卡片
+  const createUserCard = `
+    <div class="create-user-card" onclick="startCreateUser()">
+      <div class="create-user-icon">
+        <i class="fas fa-plus"></i>
+      </div>
+      <div class="create-user-text">创建新账号</div>
+    </div>
+  `;
+  
+  const content = `
+    <div class="user-selection-page">
+      <h1 class="user-selection-title">选择你的账号</h1>
+      <div class="user-selection-grid">
+        ${userCards}
+        ${createUserCard}
+      </div>
+    </div>
+  `;
+  
+  postsContainer.innerHTML = content;
+}
+
+// 渲染用户名输入页面
+function renderUsernameInputPage() {
+  const postsContainer = document.getElementById('postsContainer');
+  
+  const content = `
+    <div class="username-input-page">
+      <div class="username-input-header">
+        <div class="back-btn" onclick="backToUserSelection()">
+          <i class="fas fa-arrow-left text-xl"></i>
+        </div>
+        <h1 class="username-input-title">创建新账号</h1>
+      </div>
+      <div class="username-input-form">
+        <input 
+          type="text" 
+          id="usernameInput" 
+          class="username-input-field" 
+          placeholder="请输入用户名（1-50字符）"
+          maxlength="50"
+        >
+        <div class="username-input-buttons">
+          <button class="username-input-button secondary" onclick="backToUserSelection()">
+            返回
+          </button>
+          <button id="usernameSubmitBtn" class="username-input-button primary" disabled onclick="submitUsername()">
+            下一步
           </button>
         </div>
       </div>
@@ -1156,14 +1324,20 @@ function renderTemplateSelectionPage() {
   
   const content = `
     <div class="template-selection-page">
+      <div class="template-selection-header">
+        <div class="back-btn" onclick="backToUsernameInput()">
+          <i class="fas fa-arrow-left text-xl"></i>
+        </div>
+        <h1 class="template-selection-title">选择账号模板</h1>
+      </div>
       <div class="template-grid">
         ${availableTemplates.map(template => `
           <div class="template-card" onclick="selectTemplate(${template.id})">
-            <h3 class="template-name">${template.name}</h3>
-            <div class="template-description">
+            <h3 class="template-card-name">${template.name}</h3>
+            <div class="template-card-desc">
               ${template.persona.substring(0, 200)}...
             </div>
-            <button class="template-select-button" onclick="event.stopPropagation(); selectTemplate(${template.id})">
+            <button class="template-card-select" onclick="event.stopPropagation(); selectTemplate(${template.id})">
               选择此模板
             </button>
           </div>
@@ -1178,17 +1352,17 @@ function renderTemplateSelectionPage() {
 // 设置用户名验证
 function setupUsernameValidation() {
   const usernameInput = document.getElementById('usernameInput');
-  const createBtn = document.getElementById('createUserBtn');
+  const submitBtn = document.getElementById('usernameSubmitBtn');
   
-  if (usernameInput && createBtn) {
+  if (usernameInput && submitBtn) {
     usernameInput.addEventListener('input', () => {
       const username = usernameInput.value.trim();
-      createBtn.disabled = username.length === 0 || username.length > 50;
+      submitBtn.disabled = username.length === 0 || username.length > 50;
     });
     
     usernameInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !createBtn.disabled) {
-        validateUsername();
+      if (e.key === 'Enter' && !submitBtn.disabled) {
+        submitUsername();
       }
     });
   }
@@ -1225,8 +1399,15 @@ async function selectExistingUser(userId) {
   }
 }
 
-// 验证用户名并进入模板选择
-async function validateUsername() {
+// 开始创建新用户
+function startCreateUser() {
+  currentAppState = APP_STATES.USERNAME_INPUT;
+  pendingUsername = null;
+  renderCurrentState();
+}
+
+// 提交用户名
+function submitUsername() {
   const usernameInput = document.getElementById('usernameInput');
   const username = usernameInput.value.trim();
   
@@ -1243,43 +1424,60 @@ async function validateUsername() {
   }
   
   // 保存用户名，进入模板选择
-  selectedUser = { username: username };
+  pendingUsername = username;
   currentAppState = APP_STATES.TEMPLATE_SELECTION;
+  renderCurrentState();
+}
+
+// 返回用户选择界面
+function backToUserSelection() {
+  currentAppState = APP_STATES.USER_SELECTION;
+  pendingUsername = null;
+  renderCurrentState();
+}
+
+// 返回用户名输入界面
+function backToUsernameInput() {
+  currentAppState = APP_STATES.USERNAME_INPUT;
   renderCurrentState();
 }
 
 // 选择模板并完成设置
 async function selectTemplate(templateId) {
   try {
-    let finalUser;
-    
-    if (selectedUser.humanUserId) {
-      // 现有用户，直接设置
-      finalUser = selectedUser;
-    } else {
-      // 新用户，先创建
-      finalUser = await createNewUser(selectedUser.username, templateId);
-      console.log('用户创建成功:', finalUser);
+    if (!pendingUsername) {
+      showErrorMessage('用户名信息丢失，请重新开始');
+      return;
     }
+    
+    // 创建新用户
+    const finalUser = await createNewUser(pendingUsername, templateId);
+    console.log('用户创建成功:', finalUser);
     
     // 设置为当前用户
     await setCurrentUser(finalUser.humanUserId);
     currentUser = finalUser;
+    
+    // 更新用户列表
+    availableUsers.push(finalUser);
     
     // 进入主应用
     currentAppState = APP_STATES.MAIN_APP;
     currentView = 'timeline';
     togglePublishArea(true);
     
+    // 清空待创建用户名
+    pendingUsername = null;
+    
     // 加载帖子和初始化WebSocket
     await loadPosts();
     initWebSocket();
     
     renderCurrentState();
-    showSuccessMessage('用户设置完成！');
+    showSuccessMessage('用户创建完成！');
     
   } catch (error) {
-    console.error('设置用户失败:', error);
-    showErrorMessage('设置用户失败，请重试');
+    console.error('创建用户失败:', error);
+    showErrorMessage('创建用户失败，请重试');
   }
 }
