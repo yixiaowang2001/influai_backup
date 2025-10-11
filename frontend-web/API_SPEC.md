@@ -96,11 +96,55 @@
 }
 ```
 
+### 2.5 清除当前用户
+**POST** `/user/clear-current`
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "已清除当前用户: STAR用户",
+  "data": null
+}
+```
+
+**说明:**
+- 清除当前设置的全局用户状态
+- 使系统回到无用户状态
+- 无需请求体参数
+
 **说明:**
 - 设置当前用户后，如果该用户没有对应的AI用户，系统会自动根据用户模板创建AI用户
 - AI用户数量为人类用户粉丝数的2倍
 - 每个人类用户都有独立的AI用户群体
 - 同时只能有一个当前用户，设置新用户会覆盖之前的用户
+
+### 2.5 删除人类用户
+**DELETE** `/user/profile/{humanUserId}`
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "message": "用户删除成功",
+    "deletedUserId": 1,
+    "deletedUsername": "测试用户",
+    "deletedPostsCount": 5,
+    "deletedAIUsersCount": 200000,
+    "deletedCommentsCount": 150,
+    "deletedHumanCommentsCount": 10,
+    "deletedAICommentsCount": 140
+  }
+}
+```
+
+**说明:**
+- 删除用户会同时删除该用户的所有帖子、评论和AI用户
+- 此操作不可逆，请谨慎使用
+- 如果删除的是当前用户，系统会自动清除当前用户状态
+- 返回删除统计信息，包括删除的帖子数、AI用户数、评论数等
 
 ---
 
@@ -193,10 +237,48 @@
   "message": "success",
   "data": {
     "postId": "post_67890",
-    "likes": 6
+    "likes": 6,
+    "isLiked": true
   }
 }
 ```
+
+### 4.4 批量获取帖子点赞统计
+**POST** `/posts/likes-stats`
+
+**请求体:**
+```json
+{
+  "post_ids": ["post_1", "post_2", "post_3"]
+}
+```
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "post_1": {
+      "likes": 45,
+      "isLiked": false
+    },
+    "post_2": {
+      "likes": 12,
+      "isLiked": true
+    },
+    "post_3": {
+      "likes": 0,
+      "isLiked": false
+    }
+  }
+}
+```
+
+**说明:**
+- 用于异步加载点赞信息，避免阻塞主要的帖子列表查询
+- 支持批量查询多个帖子的点赞统计
+- 如果帖子不存在，返回默认值 `{"likes": 0, "isLiked": false}`
 
 ---
 
@@ -277,10 +359,48 @@
   "message": "success",
   "data": {
     "commentId": "comment_11111",
-    "likes": 3
+    "likes": 3,
+    "isLiked": true
   }
 }
 ```
+
+### 5.4 批量获取评论点赞统计
+**POST** `/comments/likes-stats`
+
+**请求体:**
+```json
+{
+  "comment_ids": ["comment_1", "comment_2", "comment_3"]
+}
+```
+
+**响应示例:**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "comment_1": {
+      "likes": 5,
+      "isLiked": false
+    },
+    "comment_2": {
+      "likes": 2,
+      "isLiked": true
+    },
+    "comment_3": {
+      "likes": 0,
+      "isLiked": false
+    }
+  }
+}
+```
+
+**说明:**
+- 用于异步加载点赞信息，避免阻塞主要的评论列表查询
+- 支持批量查询多个评论的点赞统计
+- 如果评论不存在，返回默认值 `{"likes": 0, "isLiked": false}`
 
 ---
 
@@ -402,7 +522,8 @@
 1. `GET /user/profile` - 获取所有人类用户信息
 2. `GET /user-templates` - 获取用户模板列表
 3. `GET /posts` - 获取时间线帖子列表
-4. 建立 WebSocket 连接
+4. `POST /posts/likes-stats` - 批量获取帖子点赞统计
+5. 建立 WebSocket 连接
 
 ### 8.2 选择角色并初始化
 1. `POST /user/set-current` - 设置当前用户（会自动创建对应的AI用户）
@@ -415,6 +536,7 @@
 ### 8.4 查看帖子详情
 1. 点击帖子进入详情页
 2. `GET /posts/{postId}/comments?sort=time` - 获取评论列表
+3. `POST /comments/likes-stats` - 批量获取评论点赞统计
 
 ### 8.5 发布评论
 1. `POST /posts/{postId}/comments` - 发布评论（需要先设置当前用户）
@@ -446,6 +568,9 @@
 - 每个帖子/评论只能点赞一次，不能取消
 - 前端通过 `isLiked` 字段判断是否已点赞
 - 已点赞的帖子/评论不响应再次点赞请求
+- **分离接口设计**：点赞信息通过独立接口获取，避免阻塞主要数据查询
+  - 帖子列表：`GET /posts` + `POST /posts/likes-stats`
+  - 评论列表：`GET /posts/{postId}/comments` + `POST /comments/likes-stats`
 
 ### 9.3 排序功能
 - 评论支持按时间和按点赞数排序

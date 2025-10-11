@@ -11,6 +11,7 @@ let currentUser = null;
 // 应用状态枚举
 const APP_STATES = {
   USER_SELECTION: 'user_selection',
+  USERNAME_INPUT: 'username_input',
   TEMPLATE_SELECTION: 'template_selection',
   MAIN_APP: 'main_app'
 };
@@ -26,6 +27,7 @@ let currentSortOrder = 'time'; // 'time' 或 'likes'
 let availableUsers = [];
 let availableTemplates = [];
 let selectedUser = null;
+let pendingUsername = null;
 
 // WebSocket连接
 let websocket = null;
@@ -35,22 +37,33 @@ let websocket = null;
 // 通用API调用函数
 async function apiCall(endpoint, options = {}) {
   try {
+    console.log(`[API] 调用: ${API_BASE_URL}${endpoint}`);
+    
+    // 创建超时控制器
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+    
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Content-Type': 'application/json',
         ...options.headers
       },
-      ...options
+      ...options,
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+    console.log(`[API] 响应状态: ${response.status}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
     const data = await response.json();
+    console.log(`[API] 响应数据:`, data);
     return data;
   } catch (error) {
-    console.error('API调用失败:', endpoint, error);
+    console.error(`[API] 调用失败: ${endpoint}`, error);
     throw error;
   }
 }
@@ -69,8 +82,15 @@ async function getCurrentUser() {
 
 // 获取所有用户
 async function getAllUsers() {
-  const response = await apiCall('/user/profile');
-  return response.data;
+  console.log('[DEBUG] getAllUsers() 开始执行');
+  try {
+    const response = await apiCall('/user/profile');
+    console.log('[DEBUG] getAllUsers() API调用成功，返回数据:', response);
+    return response.data;
+  } catch (error) {
+    console.error('[DEBUG] getAllUsers() 失败:', error);
+    throw error;
+  }
 }
 
 // 设置当前用户
@@ -78,6 +98,22 @@ async function setCurrentUser(userId) {
   const response = await apiCall('/user/set-current', {
     method: 'POST',
     body: JSON.stringify({ human_user_id: userId })
+  });
+  return response.data;
+}
+
+// 清除当前用户
+async function clearCurrentUser() {
+  const response = await apiCall('/user/clear-current', {
+    method: 'POST'
+  });
+  return response.data;
+}
+
+// 删除用户
+async function deleteUser(userId) {
+  const response = await apiCall(`/user/profile/${userId}`, {
+    method: 'DELETE'
   });
   return response.data;
 }
@@ -128,10 +164,47 @@ async function likeComment(commentId) {
   return response.data;
 }
 
+// 批量获取帖子点赞信息
+async function fetchPostsLikes(postIds) {
+  const response = await apiCall('/posts/likes-stats', {
+    method: 'POST',
+    body: JSON.stringify({ post_ids: postIds })
+  });
+  return response.data;
+}
+
+// 获取单个帖子点赞信息
+async function fetchPostLikes(postId) {
+  const response = await apiCall(`/posts/${postId}/likes`);
+  return response.data;
+}
+
+// 批量获取评论点赞信息
+async function fetchCommentsLikes(commentIds) {
+  const response = await apiCall('/comments/likes-stats', {
+    method: 'POST',
+    body: JSON.stringify({ comment_ids: commentIds })
+  });
+  return response.data;
+}
+
+// 获取单个评论点赞信息
+async function fetchCommentLikes(commentId) {
+  const response = await apiCall(`/comments/${commentId}/likes`);
+  return response.data;
+}
+
 // 获取用户模板列表
 async function getUserTemplates() {
-  const response = await apiCall('/user-templates');
-  return response.data;
+  console.log('[DEBUG] getUserTemplates() 开始执行');
+  try {
+    const response = await apiCall('/user-templates');
+    console.log('[DEBUG] getUserTemplates() API调用成功，返回数据:', response);
+    return response.data;
+  } catch (error) {
+    console.error('[DEBUG] getUserTemplates() 失败:', error);
+    throw error;
+  }
 }
 
 // 创建新用户
@@ -198,10 +271,25 @@ function handleWebSocketMessage(message) {
   switch (message.type) {
     case 'new_post':
       // 新帖子，添加到列表顶部
-      userPosts.unshift(message.data);
-      if (currentView === 'timeline') {
-        renderPosts(userPosts);
-      }
+      const newPost = message.data;
+      // 异步获取点赞信息
+      fetchPostLikes(newPost.id).then(likeInfo => {
+        newPost.likes = likeInfo.likes;
+        newPost.isLiked = likeInfo.isLiked;
+        userPosts.unshift(newPost);
+        if (currentView === 'timeline') {
+          renderPosts(userPosts);
+        }
+      }).catch(error => {
+        console.error('获取新帖子点赞信息失败:', error);
+        // 使用默认值
+        newPost.likes = 0;
+        newPost.isLiked = false;
+        userPosts.unshift(newPost);
+        if (currentView === 'timeline') {
+          renderPosts(userPosts);
+        }
+      });
       break;
       
     case 'post_like_update':
@@ -252,35 +340,76 @@ function updatePostLikes(postId, likes, isLiked) {
 function handleAICommentPush(data) {
   console.log('[DEBUG] handleAICommentPush 收到推送:', data.postId, '当前视图:', currentView);
   
-  // 如果在详情页且是当前帖子的评论，直接添加评论到界面
-  if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
-    console.log('[DEBUG] 在详情页，添加评论到详情页');
+  // 异步获取评论点赞信息
+  fetchCommentLikes(data.comment.id).then(likeInfo => {
+    data.comment.likes = likeInfo.likes;
+    data.comment.isLiked = likeInfo.isLiked;
     
-    // 直接添加评论到当前帖子的评论列表
-    if (!currentPost.comments) {
-      currentPost.comments = [];
+    // 如果在详情页且是当前帖子的评论，直接添加评论到界面
+    if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
+      console.log('[DEBUG] 在详情页，添加评论到详情页');
+      
+      // 直接添加评论到当前帖子的评论列表
+      if (!currentPost.comments) {
+        currentPost.comments = [];
+      }
+      currentPost.comments.push(data.comment);
+      
+      // 重新渲染详情页
+      renderPostDetail(currentPost);
     }
-    currentPost.comments.push(data.comment);
     
-    // 重新渲染详情页
-    renderPostDetail(currentPost);
-  }
-  
-  // 更新帖子的评论数
-  const post = userPosts.find(p => p.id === data.postId);
-  if (post) {
-    console.log('[DEBUG] 找到帖子，当前评论数:', post.commentsCount, '即将加1');
-    // 评论数加1
-    post.commentsCount = (post.commentsCount || 0) + 1;
-    console.log('[DEBUG] 更新后评论数:', post.commentsCount);
-    
-    if (currentView === 'timeline') {
-      console.log('[DEBUG] 在时间线视图，重新渲染帖子列表');
-      renderPosts(userPosts);
+    // 更新帖子的评论数
+    const post = userPosts.find(p => p.id === data.postId);
+    if (post) {
+      console.log('[DEBUG] 找到帖子，当前评论数:', post.commentsCount, '即将加1');
+      // 评论数加1
+      post.commentsCount = (post.commentsCount || 0) + 1;
+      console.log('[DEBUG] 更新后评论数:', post.commentsCount);
+      
+      if (currentView === 'timeline') {
+        console.log('[DEBUG] 在时间线视图，重新渲染帖子列表');
+        renderPosts(userPosts);
+      }
+    } else {
+      console.log('[DEBUG] 未找到对应帖子:', data.postId);
     }
-  } else {
-    console.log('[DEBUG] 未找到对应帖子:', data.postId);
-  }
+  }).catch(error => {
+    console.error('获取新评论点赞信息失败:', error);
+    // 使用默认值
+    data.comment.likes = 0;
+    data.comment.isLiked = false;
+    
+    // 如果在详情页且是当前帖子的评论，直接添加评论到界面
+    if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
+      console.log('[DEBUG] 在详情页，添加评论到详情页');
+      
+      // 直接添加评论到当前帖子的评论列表
+      if (!currentPost.comments) {
+        currentPost.comments = [];
+      }
+      currentPost.comments.push(data.comment);
+      
+      // 重新渲染详情页
+      renderPostDetail(currentPost);
+    }
+    
+    // 更新帖子的评论数
+    const post = userPosts.find(p => p.id === data.postId);
+    if (post) {
+      console.log('[DEBUG] 找到帖子，当前评论数:', post.commentsCount, '即将加1');
+      // 评论数加1
+      post.commentsCount = (post.commentsCount || 0) + 1;
+      console.log('[DEBUG] 更新后评论数:', post.commentsCount);
+      
+      if (currentView === 'timeline') {
+        console.log('[DEBUG] 在时间线视图，重新渲染帖子列表');
+        renderPosts(userPosts);
+      }
+    } else {
+      console.log('[DEBUG] 未找到对应帖子:', data.postId);
+    }
+  });
 }
 
 // 处理评论推送完成通知
@@ -323,13 +452,24 @@ function updateCommentLikes(commentId, likes, isLiked) {
 
 // 页面加载完成后初始化
 window.addEventListener('DOMContentLoaded', async () => {
+  console.log('[DEBUG] DOM加载完成，开始初始化应用');
+  
   const commentInput = document.getElementById('postContent');
   const postButton = document.getElementById('postButton');
   const charCount = document.getElementById('charCount');
   const postsContainer = document.getElementById('postsContainer');
   
+  console.log('[DEBUG] 页面元素检查:', {
+    commentInput: !!commentInput,
+    postButton: !!postButton,
+    charCount: !!charCount,
+    postsContainer: !!postsContainer
+  });
+  
   // 初始化应用
+  console.log('[DEBUG] 开始调用 initializeApp()');
   await initializeApp();
+  console.log('[DEBUG] initializeApp() 调用完成');
   
   // 输入框内容变化监听
   commentInput.addEventListener('input', () => {
@@ -386,11 +526,39 @@ async function initializeApp() {
     
     // 并行获取所有初始化数据
     console.log('[DEBUG] 开始并行获取初始化数据');
-    const [users, templates, existingUser] = await Promise.all([
-      getAllUsers(),
-      getUserTemplates(), 
-      getCurrentUser()
-    ]);
+    
+    // 分别调用API，便于调试
+    let users = [];
+    let templates = [];
+    let existingUser = null;
+    
+    try {
+      console.log('[DEBUG] 调用 getAllUsers()');
+      users = await getAllUsers();
+      console.log('[DEBUG] getAllUsers() 完成，用户数量:', users?.length);
+    } catch (error) {
+      console.error('[DEBUG] getAllUsers() 失败:', error);
+      users = [];
+    }
+    
+    try {
+      console.log('[DEBUG] 调用 getUserTemplates()');
+      templates = await getUserTemplates();
+      console.log('[DEBUG] getUserTemplates() 完成，模板数量:', templates?.length);
+    } catch (error) {
+      console.error('[DEBUG] getUserTemplates() 失败:', error);
+      templates = [];
+    }
+    
+    try {
+      console.log('[DEBUG] 调用 getCurrentUser()');
+      existingUser = await getCurrentUser();
+      console.log('[DEBUG] getCurrentUser() 完成，现有用户:', !!existingUser);
+    } catch (error) {
+      console.error('[DEBUG] getCurrentUser() 失败:', error);
+      existingUser = null;
+    }
+    
     console.log('[DEBUG] 初始化数据获取完成', { users: users?.length, templates: templates?.length, existingUser: !!existingUser });
     
     availableUsers = users;
@@ -417,19 +585,23 @@ async function initializeApp() {
       console.log('[DEBUG] 无现有用户，进入用户选择流程');
       // 没有当前用户，进入用户选择状态
       currentAppState = APP_STATES.USER_SELECTION;
-      // 先渲染一次（可能显示加载状态）
+      // 数据已经加载完成，直接渲染用户选择页面
+      console.log('[DEBUG] 渲染用户选择页面，用户数量:', availableUsers?.length);
       renderCurrentState();
-      // 确保数据加载完成后再次渲染
-      if (availableUsers.length > 0) {
-        renderCurrentState();
-      }
       togglePublishArea(false);
     }
     
     console.log('[DEBUG] initializeApp 执行完成');
   } catch (error) {
-dui    console.error('[DEBUG] 应用初始化失败:', error);
+    console.error('[DEBUG] 应用初始化失败:', error);
     showErrorState(`应用初始化失败: ${error.message}`);
+    
+    // 显示详细的错误信息到控制台
+    console.error('详细错误信息:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
   }
 }
 
@@ -438,13 +610,28 @@ async function loadPosts() {
   try {
     console.log('[DEBUG] loadPosts 开始执行');
     
-    // 直接加载帖子数据（现在包含正确的评论数）
+    // 先获取帖子内容
     console.log('[DEBUG] 调用 fetchPosts()');
     userPosts = await fetchPosts();
     console.log('[DEBUG] fetchPosts() 完成，获得帖子数量:', userPosts?.length);
     
+    // 提取帖子ID并批量获取点赞信息
+    if (userPosts && userPosts.length > 0) {
+      const postIds = userPosts.map(post => post.id);
+      console.log('[DEBUG] 调用 fetchPostsLikes()');
+      const likesData = await fetchPostsLikes(postIds);
+      console.log('[DEBUG] fetchPostsLikes() 完成');
+      
+      // 合并点赞信息到帖子数据
+      userPosts.forEach(post => {
+        const likeInfo = likesData[post.id] || { likes: 0, isLiked: false };
+        post.likes = likeInfo.likes;
+        post.isLiked = likeInfo.isLiked;
+      });
+    }
+    
     console.log('[DEBUG] 调用 renderPosts()');
-    renderPosts(userPosts);  // 立即显示帖子，包含正确的评论数
+    renderPosts(userPosts);  // 显示帖子，包含内容和点赞信息
     console.log('[DEBUG] renderPosts() 完成');
     
     // 注意：新发布的帖子的评论会通过WebSocket实时推送更新
@@ -554,10 +741,10 @@ function renderPostDetailWithoutComments(post) {
   const htmlContent = `
     <div class="post-detail">
       <!-- 返回按钮 -->
-      <div class="p-4 border-b border-gray-200 bg-gray-50">
-        <button onclick="backToTimeline()" class="text-gray-600 hover:text-gray-800 flex items-center">
-          <i class="fas fa-arrow-left mr-2"></i>
-          返回时间线
+      <div class="timeline-header">
+        <button onclick="backToTimeline()" class="back-to-selection-btn">
+          <i class="fas fa-arrow-left"></i>
+          <span>返回时间线</span>
         </button>
       </div>
       
@@ -769,7 +956,22 @@ async function loadCommentsForCurrentPost() {
   if (!currentPost) return;
   
   try {
+    // 先获取评论内容
     const comments = await fetchComments(currentPost.id, currentSortOrder);
+    
+    // 提取评论ID并批量获取点赞信息
+    if (comments && comments.length > 0) {
+      const commentIds = comments.map(comment => comment.id);
+      const likesData = await fetchCommentsLikes(commentIds);
+      
+      // 合并点赞信息到评论数据
+      comments.forEach(comment => {
+        const likeInfo = likesData[comment.id] || { likes: 0, isLiked: false };
+        comment.likes = likeInfo.likes;
+        comment.isLiked = likeInfo.isLiked;
+      });
+    }
+    
     currentPost.comments = comments;
     renderPostDetail(currentPost);
   } catch (error) {
@@ -800,9 +1002,19 @@ function renderPosts(posts) {
   const postsContainer = document.getElementById('postsContainer');
   console.log('[DEBUG] 获取 postsContainer 元素:', !!postsContainer);
   
+  // 顶部导航栏HTML
+  const headerHTML = `
+    <div class="timeline-header">
+      <button onclick="backToUserSelection()" class="back-to-selection-btn">
+        <i class="fas fa-arrow-left"></i>
+        <span>返回账号选择</span>
+      </button>
+    </div>
+  `;
+  
   if (!posts || posts.length === 0) {
     console.log('[DEBUG] 无帖子，显示空状态');
-    postsContainer.innerHTML = `
+    postsContainer.innerHTML = headerHTML + `
       <div class="flex items-center justify-center py-8">
         <div class="text-gray-500">暂无帖子</div>
       </div>
@@ -811,7 +1023,7 @@ function renderPosts(posts) {
   }
   
   // 生成帖子HTML - 使用扁平样式，细灰线分隔
-  const htmlContent = posts.map(post => `
+  const postsHTML = posts.map(post => `
     <div class="post-item">
       <div class="p-4 cursor-pointer" onclick="viewPostDetail('${post.id}')">
         <div class="flex items-center mb-3">
@@ -834,8 +1046,8 @@ function renderPosts(posts) {
     </div>
   `).join('');
   
-  console.log('[DEBUG] 设置 postsContainer.innerHTML，HTML长度:', htmlContent.length);
-  postsContainer.innerHTML = htmlContent;
+  console.log('[DEBUG] 设置 postsContainer.innerHTML，HTML长度:', (headerHTML + postsHTML).length);
+  postsContainer.innerHTML = headerHTML + postsHTML;
   console.log('[DEBUG] renderPosts 执行完成');
 }
 
@@ -849,10 +1061,10 @@ function renderPostDetail(post) {
   const htmlContent = `
     <div class="post-detail">
       <!-- 返回按钮 -->
-      <div class="p-4 border-b border-gray-200 bg-gray-50">
-        <button onclick="backToTimeline()" class="text-gray-600 hover:text-gray-800 flex items-center">
-          <i class="fas fa-arrow-left mr-2"></i>
-          返回时间线
+      <div class="timeline-header">
+        <button onclick="backToTimeline()" class="back-to-selection-btn">
+          <i class="fas fa-arrow-left"></i>
+          <span>返回时间线</span>
         </button>
       </div>
       
@@ -1005,6 +1217,10 @@ function renderCurrentState() {
       console.log('[DEBUG] 渲染用户选择页面');
       renderUserSelectionPage();
       break;
+    case APP_STATES.USERNAME_INPUT:
+      console.log('[DEBUG] 渲染用户名输入页面');
+      renderUsernameInputPage();
+      break;
     case APP_STATES.TEMPLATE_SELECTION:
       console.log('[DEBUG] 渲染模板选择页面');
       renderTemplateSelectionPage();
@@ -1026,10 +1242,15 @@ function renderCurrentState() {
 
 // 渲染用户选择页面
 function renderUserSelectionPage() {
+  console.log('[DEBUG] renderUserSelectionPage() 开始执行');
+  console.log('[DEBUG] availableUsers:', availableUsers);
+  console.log('[DEBUG] availableUsers.length:', availableUsers?.length);
+  
   const postsContainer = document.getElementById('postsContainer');
   
   // 如果数据还没加载完成，显示加载状态
-  if (!availableUsers || availableUsers.length === 0) {
+  if (!availableUsers) {
+    console.log('[DEBUG] 用户数据未加载，显示加载状态');
     postsContainer.innerHTML = `
       <div class="user-selection-page">
         <div class="flex items-center justify-center py-8">
@@ -1040,31 +1261,83 @@ function renderUserSelectionPage() {
     return;
   }
   
-  const content = `
-    <div class="user-selection-page">
-      <div class="existing-users-section">
-        <h2 class="section-title">选择用户</h2>
-        <div class="user-grid">
-          ${availableUsers.map(user => `
-            <button class="user-button" onclick="selectExistingUser(${user.humanUserId})">
-              ${user.humanUsername}
-            </button>
-          `).join('')}
+  console.log('[DEBUG] 用户数据存在，渲染用户选择界面');
+  
+  // 生成用户卡片（如果有用户的话）
+  const userCards = availableUsers.length > 0 ? availableUsers.map(user => {
+    // 查找对应的模板信息
+    const template = availableTemplates.find(t => t.id === user.userTemplateId);
+    const templateName = template ? template.name : '未知模板';
+    const templateDescription = template ? template.persona.substring(0, 100) + '...' : '暂无描述';
+    
+    return `
+      <div class="user-card" onclick="selectExistingUser(${user.humanUserId})">
+        <div class="user-card-avatar">
+          <i class="fas fa-user"></i>
+        </div>
+        <div class="user-card-content">
+          <div class="user-card-name">${user.humanUsername}</div>
+          <div class="user-card-template">模板：${templateName}</div>
+          <div class="user-card-followers">粉丝数：${user.followerCount}</div>
+          <div class="user-card-description">${templateDescription}</div>
+        </div>
+        <div class="user-card-actions">
+          <i class="fas fa-trash-alt delete-user-btn" onclick="event.stopPropagation(); showDeleteConfirmDialog(${user.humanUserId})"></i>
+          <div class="user-card-enter">
+            进入
+          </div>
         </div>
       </div>
-      
-      <div class="create-user-section">
-        <h2 class="section-title">创建新用户</h2>
-        <div class="create-user-form">
-          <input 
-            type="text" 
-            id="usernameInput" 
-            class="user-input" 
-            placeholder="输入用户名"
-            maxlength="50"
-          >
-          <button id="createUserBtn" class="create-button" disabled onclick="validateUsername()">
-            创建
+    `;
+  }).join('') : '';
+  
+  // 创建新账号卡片
+  const createUserCard = `
+    <div class="create-user-card" onclick="startCreateUser()">
+      <i class="fas fa-plus create-user-icon"></i>
+      <div class="create-user-text">创建新账号</div>
+    </div>
+  `;
+  
+  const content = `
+    <div class="user-selection-page">
+      <h1 class="user-selection-title">选择你的账号</h1>
+      <div class="user-selection-grid">
+        ${userCards}
+        ${createUserCard}
+      </div>
+    </div>
+  `;
+  
+  postsContainer.innerHTML = content;
+}
+
+// 渲染用户名输入页面
+function renderUsernameInputPage() {
+  const postsContainer = document.getElementById('postsContainer');
+  
+  const content = `
+    <div class="username-input-page">
+      <div class="username-input-header">
+        <div class="back-btn" onclick="backToUserSelectionFromCreate()">
+          <i class="fas fa-arrow-left text-xl"></i>
+        </div>
+        <h1 class="username-input-title">创建新账号</h1>
+      </div>
+      <div class="username-input-form">
+        <input 
+          type="text" 
+          id="usernameInput" 
+          class="username-input-field" 
+          placeholder="请输入用户名（1-50字符）"
+          maxlength="50"
+        >
+        <div class="username-input-buttons">
+          <button class="username-input-button secondary" onclick="backToUserSelectionFromCreate()">
+            返回
+          </button>
+          <button id="usernameSubmitBtn" class="username-input-button primary" disabled onclick="submitUsername()">
+            下一步
           </button>
         </div>
       </div>
@@ -1081,14 +1354,20 @@ function renderTemplateSelectionPage() {
   
   const content = `
     <div class="template-selection-page">
+      <div class="template-selection-header">
+        <div class="back-btn" onclick="backToUsernameInput()">
+          <i class="fas fa-arrow-left text-xl"></i>
+        </div>
+        <h1 class="template-selection-title">选择账号模板</h1>
+      </div>
       <div class="template-grid">
         ${availableTemplates.map(template => `
           <div class="template-card" onclick="selectTemplate(${template.id})">
-            <h3 class="template-name">${template.name}</h3>
-            <div class="template-description">
+            <h3 class="template-card-name">${template.name}</h3>
+            <div class="template-card-desc">
               ${template.persona.substring(0, 200)}...
             </div>
-            <button class="template-select-button" onclick="event.stopPropagation(); selectTemplate(${template.id})">
+            <button class="template-card-select" onclick="event.stopPropagation(); selectTemplate(${template.id})">
               选择此模板
             </button>
           </div>
@@ -1103,17 +1382,17 @@ function renderTemplateSelectionPage() {
 // 设置用户名验证
 function setupUsernameValidation() {
   const usernameInput = document.getElementById('usernameInput');
-  const createBtn = document.getElementById('createUserBtn');
+  const submitBtn = document.getElementById('usernameSubmitBtn');
   
-  if (usernameInput && createBtn) {
+  if (usernameInput && submitBtn) {
     usernameInput.addEventListener('input', () => {
       const username = usernameInput.value.trim();
-      createBtn.disabled = username.length === 0 || username.length > 50;
+      submitBtn.disabled = username.length === 0 || username.length > 50;
     });
     
     usernameInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !createBtn.disabled) {
-        validateUsername();
+      if (e.key === 'Enter' && !submitBtn.disabled) {
+        submitUsername();
       }
     });
   }
@@ -1150,8 +1429,15 @@ async function selectExistingUser(userId) {
   }
 }
 
-// 验证用户名并进入模板选择
-async function validateUsername() {
+// 开始创建新用户
+function startCreateUser() {
+  currentAppState = APP_STATES.USERNAME_INPUT;
+  pendingUsername = null;
+  renderCurrentState();
+}
+
+// 提交用户名
+function submitUsername() {
   const usernameInput = document.getElementById('usernameInput');
   const username = usernameInput.value.trim();
   
@@ -1168,43 +1454,168 @@ async function validateUsername() {
   }
   
   // 保存用户名，进入模板选择
-  selectedUser = { username: username };
+  pendingUsername = username;
   currentAppState = APP_STATES.TEMPLATE_SELECTION;
+  renderCurrentState();
+}
+
+// 返回用户选择界面（从创建用户流程）
+function backToUserSelectionFromCreate() {
+  currentAppState = APP_STATES.USER_SELECTION;
+  pendingUsername = null;
+  renderCurrentState();
+}
+
+// 返回账号选择（从主应用）
+async function backToUserSelection() {
+  try {
+    // 清除后端的当前用户
+    await clearCurrentUser();
+    
+    // 清除前端状态
+    currentUser = null;
+    currentAppState = APP_STATES.USER_SELECTION;
+    currentView = 'timeline';
+    
+    // 关闭WebSocket连接
+    if (websocket) {
+      websocket.close();
+      websocket = null;
+    }
+    
+    // 隐藏发布框
+    togglePublishArea(false);
+    
+    // 重新加载用户列表并渲染
+    availableUsers = await getAllUsers();
+    renderCurrentState();
+    
+    showSuccessMessage('已退出当前账号');
+  } catch (error) {
+    console.error('返回账号选择失败:', error);
+    showErrorMessage('返回账号选择失败');
+  }
+}
+
+// 返回用户名输入界面
+function backToUsernameInput() {
+  currentAppState = APP_STATES.USERNAME_INPUT;
   renderCurrentState();
 }
 
 // 选择模板并完成设置
 async function selectTemplate(templateId) {
   try {
-    let finalUser;
-    
-    if (selectedUser.humanUserId) {
-      // 现有用户，直接设置
-      finalUser = selectedUser;
-    } else {
-      // 新用户，先创建
-      finalUser = await createNewUser(selectedUser.username, templateId);
-      console.log('用户创建成功:', finalUser);
+    if (!pendingUsername) {
+      showErrorMessage('用户名信息丢失，请重新开始');
+      return;
     }
+    
+    // 创建新用户
+    const finalUser = await createNewUser(pendingUsername, templateId);
+    console.log('用户创建成功:', finalUser);
     
     // 设置为当前用户
     await setCurrentUser(finalUser.humanUserId);
     currentUser = finalUser;
+    
+    // 更新用户列表
+    availableUsers.push(finalUser);
     
     // 进入主应用
     currentAppState = APP_STATES.MAIN_APP;
     currentView = 'timeline';
     togglePublishArea(true);
     
+    // 清空待创建用户名
+    pendingUsername = null;
+    
     // 加载帖子和初始化WebSocket
     await loadPosts();
     initWebSocket();
     
     renderCurrentState();
-    showSuccessMessage('用户设置完成！');
+    showSuccessMessage('用户创建完成！');
     
   } catch (error) {
-    console.error('设置用户失败:', error);
-    showErrorMessage('设置用户失败，请重试');
+    console.error('创建用户失败:', error);
+    showErrorMessage('创建用户失败，请重试');
+  }
+}
+
+// ===== 删除用户相关函数 =====
+
+// 存储待删除的用户信息
+let pendingDeleteUser = null;
+
+// 显示删除确认对话框
+function showDeleteConfirmDialog(userId) {
+  console.log('显示删除确认对话框:', userId);
+  
+  // 查找用户信息
+  const user = availableUsers.find(u => u.humanUserId === userId);
+  if (!user) {
+    console.error('未找到用户:', userId);
+    return;
+  }
+  
+  pendingDeleteUser = user;
+  
+  // 更新对话框内容
+  document.getElementById('deleteUserName').textContent = user.humanUsername;
+  
+  // 显示对话框
+  document.getElementById('deleteConfirmModal').classList.add('show');
+}
+
+// 隐藏删除确认对话框
+function hideDeleteConfirmDialog() {
+  console.log('隐藏删除确认对话框');
+  document.getElementById('deleteConfirmModal').classList.remove('show');
+  pendingDeleteUser = null;
+}
+
+// 确认删除用户
+async function confirmDeleteUser() {
+  if (!pendingDeleteUser) {
+    console.error('没有待删除的用户');
+    return;
+  }
+  
+  try {
+    console.log('开始删除用户:', pendingDeleteUser);
+    
+    // 调用删除API
+    const result = await deleteUser(pendingDeleteUser.humanUserId);
+    
+    console.log('删除用户成功:', result);
+    console.log('result.deletedPostsCount:', result.deletedPostsCount);
+    console.log('result.deletedAIUsersCount:', result.deletedAIUsersCount);
+    console.log('result.deletedCommentsCount:', result.deletedCommentsCount);
+    
+    // 保存用户名，因为hideDeleteConfirmDialog()会清空pendingDeleteUser
+    const deletedUsername = pendingDeleteUser.humanUsername;
+    
+    // 隐藏对话框
+    hideDeleteConfirmDialog();
+    
+    // 刷新用户列表
+    availableUsers = await getAllUsers();
+    renderCurrentState();
+    
+    // 显示成功消息
+    showSuccessMessage(`用户 ${deletedUsername} 删除成功！删除了 ${result.deletedPostsCount} 个帖子、${result.deletedAIUsersCount} 个AI用户、${result.deletedCommentsCount} 条评论`);
+    
+    // 如果删除的是当前用户，需要重新显示用户选择页面
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      currentAppState = APP_STATES.USER_SELECTION;
+      renderCurrentState();
+    }
+    
+  } catch (error) {
+    console.error('删除用户失败:', error);
+    hideDeleteConfirmDialog();
+    showErrorMessage('删除用户失败，请重试');
   }
 }
