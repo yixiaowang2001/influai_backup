@@ -13,3 +13,4 @@ alembic==1.13.1
 celery==5.3.4
 redis==5.0.1
 flower==2.0.1
+ijson==3.2.3
