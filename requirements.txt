@@ -14,3 +14,9 @@ celery==5.3.4
 redis==5.0.1
 flower==2.0.1
 ijson==3.2.3
+datasketch==1.6.4
+# 混合检索相关依赖
+rank-bm25==0.2.2
+sentence-transformers==2.2.2
+faiss-cpu==1.7.4
+numpy>=1.21.0
