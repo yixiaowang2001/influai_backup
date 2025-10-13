@@ -204,3 +204,4 @@ backend/configs/credential.py
 # InfluAI项目特定的日志文件
 logs/
 *.log
+model/data/raw_data

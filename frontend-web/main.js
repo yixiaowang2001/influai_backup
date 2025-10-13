@@ -741,10 +741,10 @@ function renderPostDetailWithoutComments(post) {
   const htmlContent = `
     <div class="post-detail">
       <!-- 返回按钮 -->
-      <div class="timeline-header">
-        <button onclick="backToTimeline()" class="back-to-selection-btn">
-          <i class="fas fa-arrow-left"></i>
-          <span>返回时间线</span>
+      <div class="p-4 border-b border-gray-200 bg-gray-50">
+        <button onclick="backToTimeline()" class="text-gray-600 hover:text-gray-800 flex items-center">
+          <i class="fas fa-arrow-left mr-2"></i>
+          返回时间线
         </button>
       </div>
       
@@ -1061,10 +1061,10 @@ function renderPostDetail(post) {
   const htmlContent = `
     <div class="post-detail">
       <!-- 返回按钮 -->
-      <div class="timeline-header">
-        <button onclick="backToTimeline()" class="back-to-selection-btn">
-          <i class="fas fa-arrow-left"></i>
-          <span>返回时间线</span>
+      <div class="p-4 border-b border-gray-200 bg-gray-50">
+        <button onclick="backToTimeline()" class="text-gray-600 hover:text-gray-800 flex items-center">
+          <i class="fas fa-arrow-left mr-2"></i>
+          返回时间线
         </button>
       </div>
       
