@@ -25,7 +25,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 sys.path.append(project_root)
 
-from backend.ai_module.comment_related import generate_lv1_seeds
+from backend.ai_module.comment_related import generate_lv1_seeds, expand_lv1_comments
 from backend.ai_module.llm import chat
 from backend.ai_module.llm_utils import parse_json_response
 from backend.models import Attitude
@@ -42,7 +42,7 @@ CONFIG = {
     'POST_CONTENT': '大家明天都来看我的演唱会！',
     
     # FAISS检索参数
-    'FAISS_TOP_K': 5,  # 检索返回的示例数量
+    'FAISS_TOP_K': 20,  # 检索返回的示例数量
     'INDEX_DIR': './index',  # FAISS索引目录
     
     # 评论扩展参数
@@ -99,27 +99,33 @@ def get_expand_lv1_comments_prompt_with_fewshot(
     Returns:
         (system_prompt, user_prompt)
     """
-    system_prompt = f"""**角色**：社交媒体评论扩展AI，基于种子评论生成同态度/同风格的批量评论
-**核心任务**：保持原始评论的核心特征（态度及网络用户风格），生成语义相似的新评论
+    system_prompt = f"""**角色**：社交媒体评论扩展AI，基于种子评论和参考示例生成同态度/同风格的批量评论
+**核心任务**：学习参考示例的表达风格和语气特点，结合种子评论的核心态度，生成自然真实的新评论
 
 ### 内容生成法则
-1. **特征继承机制**
-   - 语言风格：严格继承种子评论的网络用语特征
+1. **风格学习机制**（重要！）
+   - 表达方式：深度学习参考示例的表达习惯、用词偏好、语气词使用方式
+   - 口语化程度：匹配参考示例的口语化水平（如"咋"、"啥"、"嘛"、"呗"等方言词使用）
+   - 语气节奏：学习参考示例的句子节奏感、停顿方式、语气强度
+   - 网络用语：观察参考示例中的网络流行语、缩写、梗的使用方式并模仿
+   - emoji风格：学习参考示例中emoji的使用频率、种类、位置（注意：如果参考示例不用emoji则不用）
+   - 情绪表达：学习参考示例如何表达情绪（重复字、感叹号、语气词、拟声词等）
+
+2. **特征继承机制**
+   - 态度维度：严格继承种子评论的核心态度（正面/负面/中立）
    - 情感强度：保持原始评论的情感烈度
-   - 句式结构：与种子评论保持类似的句式结构，但不能完全一致
-   - emoji使用（重要！）：在新生成的评论里严禁使用emoji
+   - 主题关联：围绕帖子主题生成内容，避免偏离主题
 
-2. **语义变体策略**
-   - 角度偏移：保持态度不变，调整表述视角
-   - 句式重组：拆解长句结构或合并短句，保持平均长度±50%波动
-
-3. **相似度控制**
-   - 严格维持原始态度分类
-   - 禁止完全复制种子句式结构
+3. **内容创新策略**
+   - 角度偏移：保持态度不变，但从不同角度切入
+   - 语义变体：用不同的表达方式传达相似的情感和观点
+   - 避免复制：绝对禁止复制参考示例中的具体名词（人名、地名、品牌名等）
+   - 避免复制：不要照搬参考示例的完整句子，要创造新的表达
 
 4. **批量生成规范**
    - 每组种子评论生成{expand_count}条变体
-   - 变体间重复度<10%（使用不同修辞范例）
+   - 变体间重复度<10%（使用不同修辞和表达）
+   - 每条评论风格应该融合参考示例的语气特点
    - 自动过滤涉政/低俗内容
 
 ### 输出格式
@@ -135,10 +141,11 @@ def get_expand_lv1_comments_prompt_with_fewshot(
 """
 
     # 构建few-shot示例部分
-    fewshot_section = "**参考示例（相似评论）**：\n"
+    fewshot_section = "**参考示例（相似评论风格）**：\n以下是与种子评论语义相似的真实评论，请深度学习它们的表达风格、用词习惯、语气特点：\n\n"
     if fewshot_examples:
         for i, example in enumerate(fewshot_examples, 1):
             fewshot_section += f"{i}. {example}\n"
+        fewshot_section += "\n**重点观察**：参考示例的口语化程度、网络用语使用、情绪表达方式、句式节奏、标点符号等。\n"
     else:
         fewshot_section += "（无参考示例）\n"
 
@@ -155,10 +162,19 @@ def get_expand_lv1_comments_prompt_with_fewshot(
 {fewshot_section}
 
 **执行要求**
-1. 参考上述示例的风格和表达方式
-2. 每组生成{expand_count}条符合系统约束的变体
-3. 严格保持原始态度分类
-4. 输出完整JSON结构
+1. **风格学习**：仔细分析参考示例的表达风格，包括：
+   - 用词习惯（口语、书面语、网络用语的比例）
+   - 语气词和情绪表达方式（如"啊"、"哦"、"呀"、"哈哈"等）
+   - emoji使用风格（频率、种类、位置）
+   - 句式特点（长短、节奏、停顿）
+   
+2. **内容生成**：生成{expand_count}条评论，要求：
+   - 保持种子评论的核心态度和情感强度
+   - 融入参考示例的语气特点和表达习惯
+   - 避免复制参考示例中的具体名词（人名、作品名、品牌名等）
+   - 每条评论都应该读起来自然、真实、符合社交媒体风格
+   
+3. **输出格式**：严格按照JSON格式输出
 """
 
     return system_prompt, user_prompt
@@ -301,7 +317,7 @@ class FewShotCommentTester:
         seed_index: int,
         total_seeds: int
     ):
-        """处理单个种子评论"""
+        """处理单个种子评论（生成带few-shot和不带few-shot的对比）"""
         print("\n" + "=" * 60)
         print(f" 处理种子评论 [{seed_index}/{total_seeds}]")
         print("=" * 60)
@@ -310,7 +326,7 @@ class FewShotCommentTester:
         print("-" * 60)
         
         # 1. 检索相似评论
-        print(f"\n[1/2] 检索相似评论 (Top {self.config['FAISS_TOP_K']})...")
+        print(f"\n[1/3] 检索相似评论 (Top {self.config['FAISS_TOP_K']})...")
         fewshot_examples = self.search_similar_comments(
             query=seed_comment,
             top_k=self.config['FAISS_TOP_K']
@@ -320,9 +336,24 @@ class FewShotCommentTester:
         for i, example in enumerate(fewshot_examples, 1):
             print(f"   {i}. {example}")
         
-        # 2. 使用few-shot扩展评论
-        print(f"\n[2/2] 生成扩展评论 (数量: {self.config['EXPAND_COUNT']})...")
-        expanded_comments = expand_lv1_comments_with_fewshot(
+        # 2. 生成不带few-shot的扩展评论（基线版本）
+        print(f"\n[2/3] 生成基线版本评论（不使用few-shot，数量: {self.config['EXPAND_COUNT']}）...")
+        baseline_comments = expand_lv1_comments(
+            persona=self.user_template['persona'],
+            post_content=self.post_content,
+            attitude_type=attitude,
+            seed_comments=[seed_comment],
+            expand_count=self.config['EXPAND_COUNT'],
+            retry=3
+        )
+        
+        print(f" 基线版本生成 {len(baseline_comments)} 条评论：")
+        for i, comment in enumerate(baseline_comments, 1):
+            print(f"   {i}. {comment}")
+        
+        # 3. 生成带few-shot的扩展评论
+        print(f"\n[3/3] 生成Few-shot版本评论（使用检索示例，数量: {self.config['EXPAND_COUNT']}）...")
+        fewshot_comments = expand_lv1_comments_with_fewshot(
             persona=self.user_template['persona'],
             post_content=self.post_content,
             attitude_type=attitude,
@@ -332,15 +363,24 @@ class FewShotCommentTester:
             retry=3
         )
         
-        print(f" 成功生成 {len(expanded_comments)} 条扩展评论：")
-        for i, comment in enumerate(expanded_comments, 1):
+        print(f" Few-shot版本生成 {len(fewshot_comments)} 条评论：")
+        for i, comment in enumerate(fewshot_comments, 1):
             print(f"   {i}. {comment}")
+        
+        # 打印对比
+        print("\n" + "-" * 60)
+        print(" 【对比总结】")
+        print("-" * 60)
+        print(f" 基线版本：{len(baseline_comments)} 条")
+        print(f" Few-shot版本：{len(fewshot_comments)} 条")
+        print(f" 参考示例数：{len(fewshot_examples)} 条")
         
         return {
             'attitude': attitude.value,
             'seed': seed_comment,
             'fewshot_examples': fewshot_examples,
-            'expanded': expanded_comments
+            'baseline_expanded': baseline_comments,
+            'fewshot_expanded': fewshot_comments
         }
     
     def run_test(self):
@@ -384,8 +424,10 @@ class FewShotCommentTester:
         print(" 测试完成")
         print("=" * 60)
         print(f" 处理种子评论数: {len(all_results)}")
-        total_expanded = sum(len(r['expanded']) for r in all_results)
-        print(f" 生成扩展评论数: {total_expanded}")
+        total_baseline = sum(len(r['baseline_expanded']) for r in all_results)
+        total_fewshot = sum(len(r['fewshot_expanded']) for r in all_results)
+        print(f" 基线版本生成评论数: {total_baseline}")
+        print(f" Few-shot版本生成评论数: {total_fewshot}")
         print("=" * 60 + "\n")
         
         # 5. 保存结果
