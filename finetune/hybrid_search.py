@@ -22,7 +22,7 @@
 # 3. 交互式：将 mode 设为 'interactive'
 # ============================================================
 LOCAL_CONFIG = {
-    'mode': 'search',  # 可选: 'build', 'search', 'interactive'
+    'mode': 'build',  # 可选: 'build', 'search', 'interactive'
     'data': 'processed_data.json',  # 数据文件路径
     'index_dir': './index',  # 索引目录
     'query': '这傻逼班 不想上了',  # 查询文本（search模式使用）
