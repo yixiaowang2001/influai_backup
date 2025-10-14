@@ -205,3 +205,4 @@ backend/configs/credential.py
 logs/
 *.log
 finetune/raw_data
+finetune/index
