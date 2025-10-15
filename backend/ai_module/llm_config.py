@@ -21,7 +21,7 @@ class LLMConfig:
     
     # 评论相关任务配置
     COMMENT_CONFIG = {
-        "model_name": "qwen-plus-2025-01-25",
+        "model_name": "qwen-plus-2025-04-28",
         "temperature": 1.99,
         "max_tokens": 8192,
         "max_retries": 3,

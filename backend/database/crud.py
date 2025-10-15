@@ -554,3 +554,57 @@ def delete_human_user(db: Session, human_user_id: int) -> dict:
         db.rollback()
         logger.error(f"删除人类用户失败: {e}")
         raise
+
+
+def get_posts_likes_batch(db: Session, post_ids: List[int]) -> dict:
+    """
+    批量获取帖子点赞信息
+    
+    Args:
+        db: 数据库会话
+        post_ids: 帖子ID列表
+        
+    Returns:
+        dict: 格式为 {post_id: {"likes": int, "isLiked": bool}}
+    """
+    if not post_ids:
+        return {}
+    
+    posts = db.query(models.Post).filter(models.Post.post_id.in_(post_ids)).all()
+    
+    result = {}
+    for post in posts:
+        result[post.post_id] = {
+            "likes": post.like_count,
+            "isLiked": post.is_human_user_liked == 1
+        }
+    
+    logger.debug(f"批量获取 {len(post_ids)} 个帖子的点赞信息，实际返回 {len(result)} 个")
+    return result
+
+
+def get_comments_likes_batch(db: Session, comment_ids: List[int]) -> dict:
+    """
+    批量获取评论点赞信息
+    
+    Args:
+        db: 数据库会话
+        comment_ids: 评论ID列表
+        
+    Returns:
+        dict: 格式为 {comment_id: {"likes": int, "isLiked": bool}}
+    """
+    if not comment_ids:
+        return {}
+    
+    comments = db.query(models.Comment).filter(models.Comment.comment_id.in_(comment_ids)).all()
+    
+    result = {}
+    for comment in comments:
+        result[comment.comment_id] = {
+            "likes": comment.comment_likes,
+            "isLiked": comment.is_human_user_liked == 1
+        }
+    
+    logger.debug(f"批量获取 {len(comment_ids)} 个评论的点赞信息，实际返回 {len(result)} 个")
+    return result

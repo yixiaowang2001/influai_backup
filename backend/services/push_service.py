@@ -227,9 +227,7 @@ class CommentPushService:
                         "content": comment.comment_content,
                         "author": author_info,
                         "timestamp": self._format_timestamp(comment.created_at),
-                        "createdAt": comment.created_at.isoformat(),
-                        "likes": comment.comment_likes,
-                        "isLiked": comment.is_human_user_liked == 1
+                        "createdAt": comment.created_at.isoformat()
                     },
                     metadata={
                         "comment_id": comment.comment_id,
