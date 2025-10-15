@@ -741,7 +741,7 @@ function renderPostDetailWithoutComments(post) {
   const htmlContent = `
     <div class="post-detail">
       <!-- 返回按钮 -->
-      <div class="timeline-header">
+      <div class="py-3 px-4 border-b border-gray-200 bg-white">
         <button onclick="backToTimeline()" class="back-to-selection-btn">
           <i class="fas fa-arrow-left"></i>
           <span>返回时间线</span>
@@ -763,7 +763,7 @@ function renderPostDetailWithoutComments(post) {
         <div class="px-4 pb-3 flex justify-between items-center">
           <div class="text-black font-medium">评论</div>
           <div class="text-gray-700">
-            赞 ${post.likes}
+            赞 ${post.likes !== undefined ? post.likes : 0}
           </div>
         </div>
         
@@ -1022,6 +1022,12 @@ function renderPosts(posts) {
     return;
   }
   
+  // 确保每个帖子都有默认的点赞字段
+  posts.forEach(post => {
+    if (post.likes === undefined) post.likes = 0;
+    if (post.isLiked === undefined) post.isLiked = false;
+  });
+  
   // 生成帖子HTML - 使用扁平样式，细灰线分隔
   const postsHTML = posts.map(post => `
     <div class="post-item">
@@ -1040,7 +1046,7 @@ function renderPosts(posts) {
         </button>
         <button class="action-button like-btn ${post.isLiked ? 'liked' : ''}" onclick="event.stopPropagation(); handleLike('${post.id}')">
           <i class="${post.isLiked ? 'fas' : 'far'} fa-heart"></i>
-          ${post.likes > 0 ? `<span class="ml-1 text-sm">${post.likes}</span>` : ''}
+          ${post.likes !== undefined && post.likes > 0 ? `<span class="ml-1 text-sm">${post.likes}</span>` : ''}
         </button>
       </div>
     </div>
@@ -1058,10 +1064,19 @@ function renderPostDetail(post) {
   // 排序评论（后端已排序）
   const sortedComments = post.comments || [];
   
+  // 确保帖子和评论都有默认的点赞字段
+  if (post.likes === undefined) post.likes = 0;
+  if (post.isLiked === undefined) post.isLiked = false;
+  
+  sortedComments.forEach(comment => {
+    if (comment.likes === undefined) comment.likes = 0;
+    if (comment.isLiked === undefined) comment.isLiked = false;
+  });
+  
   const htmlContent = `
     <div class="post-detail">
       <!-- 返回按钮 -->
-      <div class="timeline-header">
+      <div class="py-3 px-4 border-b border-gray-200 bg-white">
         <button onclick="backToTimeline()" class="back-to-selection-btn">
           <i class="fas fa-arrow-left"></i>
           <span>返回时间线</span>
@@ -1083,7 +1098,7 @@ function renderPostDetail(post) {
         <div class="px-4 pb-3 flex justify-between items-center">
           <div class="text-black font-medium">评论</div>
           <div class="text-gray-700">
-            赞 ${post.likes}
+            赞 ${post.likes !== undefined ? post.likes : 0}
           </div>
         </div>
         
@@ -1139,7 +1154,7 @@ function renderPostDetail(post) {
                         onclick="handleCommentLike('${comment.id}')"
                         style="flex: none; padding: 4px 8px;">
                   <i class="${comment.isLiked ? 'fas' : 'far'} fa-heart"></i>
-                  ${comment.likes > 0 ? `<span class="ml-1 text-sm">${comment.likes}</span>` : ''}
+                  ${comment.likes !== undefined && comment.likes > 0 ? `<span class="ml-1 text-sm">${comment.likes}</span>` : ''}
                 </button>
               </div>
             </div>

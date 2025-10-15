@@ -459,3 +459,152 @@ def create_human_user(db: Session, username: str, user_template_id: int, avatar_
     
     logger.info(f"成功创建人类用户，ID: {db_human_user.user_id}，用户名: {db_human_user.username}")
     return db_human_user
+
+
+def delete_human_user(db: Session, human_user_id: int) -> dict:
+    """
+    删除人类用户及其所有关联数据
+    
+    Args:
+        db: 数据库会话
+        human_user_id: 人类用户ID
+        
+    Returns:
+        dict: 包含删除统计信息的字典
+        
+    Raises:
+        ValueError: 如果用户不存在
+    """
+    logger.debug(f"开始删除人类用户，ID: {human_user_id}")
+    
+    # 验证用户是否存在
+    human_user = get_human_user_by_id(db, human_user_id)
+    if not human_user:
+        raise ValueError(f"未找到用户ID为 {human_user_id} 的用户")
+    
+    username = human_user.username
+    
+    # 统计变量
+    deleted_posts_count = 0
+    deleted_ai_users_count = 0
+    deleted_comments_count = 0
+    deleted_human_comments_count = 0
+    deleted_ai_comments_count = 0
+    
+    try:
+        # 1. 删除该用户所有AI用户发布的评论
+        ai_users = get_ai_users_by_human_user_id(db, human_user_id)
+        for ai_user in ai_users:
+            ai_comments = db.query(models.Comment).filter(
+                models.Comment.sender_id == ai_user.user_id,
+                models.Comment.sender_type == "ai_user"
+            ).all()
+            deleted_ai_comments_count += len(ai_comments)
+            for comment in ai_comments:
+                db.delete(comment)
+        
+        # 2. 删除该用户自己发布的评论
+        human_comments = db.query(models.Comment).filter(
+            models.Comment.sender_id == str(human_user_id),
+            models.Comment.sender_type == "human_user"
+        ).all()
+        deleted_human_comments_count += len(human_comments)
+        for comment in human_comments:
+            db.delete(comment)
+        
+        deleted_comments_count = deleted_ai_comments_count + deleted_human_comments_count
+        
+        # 3. 删除该用户发布的所有帖子（级联删除帖子的评论）
+        posts = db.query(models.Post).filter(models.Post.author_id == human_user_id).all()
+        deleted_posts_count = len(posts)
+        for post in posts:
+            # 删除帖子的所有评论（包括其他用户的评论）
+            post_comments = db.query(models.Comment).filter(models.Comment.post_id == post.post_id).all()
+            for comment in post_comments:
+                db.delete(comment)
+            # 删除帖子
+            db.delete(post)
+        
+        # 4. 删除该用户的所有AI用户
+        deleted_ai_users_count = len(ai_users)
+        for ai_user in ai_users:
+            db.delete(ai_user)
+        
+        # 5. 删除人类用户本身
+        db.delete(human_user)
+        
+        # 提交事务
+        db.commit()
+        
+        logger.info(f"成功删除人类用户: {username} (ID: {human_user_id})")
+        logger.info(f"删除统计 - 帖子: {deleted_posts_count}, AI用户: {deleted_ai_users_count}, 评论: {deleted_comments_count}")
+        
+        return {
+            "deleted_user_id": human_user_id,
+            "deleted_username": username,
+            "deleted_posts_count": deleted_posts_count,
+            "deleted_ai_users_count": deleted_ai_users_count,
+            "deleted_comments_count": deleted_comments_count,
+            "deleted_human_comments_count": deleted_human_comments_count,
+            "deleted_ai_comments_count": deleted_ai_comments_count
+        }
+        
+    except Exception as e:
+        # 回滚事务
+        db.rollback()
+        logger.error(f"删除人类用户失败: {e}")
+        raise
+
+
+def get_posts_likes_batch(db: Session, post_ids: List[int]) -> dict:
+    """
+    批量获取帖子点赞信息
+    
+    Args:
+        db: 数据库会话
+        post_ids: 帖子ID列表
+        
+    Returns:
+        dict: 格式为 {post_id: {"likes": int, "isLiked": bool}}
+    """
+    if not post_ids:
+        return {}
+    
+    posts = db.query(models.Post).filter(models.Post.post_id.in_(post_ids)).all()
+    
+    result = {}
+    for post in posts:
+        result[post.post_id] = {
+            "likes": post.like_count,
+            "isLiked": post.is_human_user_liked == 1
+        }
+    
+    logger.debug(f"批量获取 {len(post_ids)} 个帖子的点赞信息，实际返回 {len(result)} 个")
+    return result
+
+
+def get_comments_likes_batch(db: Session, comment_ids: List[int]) -> dict:
+    """
+    批量获取评论点赞信息
+    
+    Args:
+        db: 数据库会话
+        comment_ids: 评论ID列表
+        
+    Returns:
+        dict: 格式为 {comment_id: {"likes": int, "isLiked": bool}}
+    """
+    if not comment_ids:
+        return {}
+    
+    comments = db.query(models.Comment).filter(models.Comment.comment_id.in_(comment_ids)).all()
+    
+    result = {}
+    for comment in comments:
+        result[comment.comment_id] = {
+            "likes": comment.comment_likes,
+            "isLiked": comment.is_human_user_liked == 1
+        }
+    
+    logger.debug(f"批量获取 {len(comment_ids)} 个评论的点赞信息，实际返回 {len(result)} 个")
+    return result
