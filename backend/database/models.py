@@ -113,3 +113,23 @@ class HumanUser(Base):
 
     def __str__(self):
         return f"人类用户: {self.username} (模板ID: {self.user_template_id})"
+
+
+class PostLike(Base):
+    __tablename__ = "post_likes"
+
+    like_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    post_id = Column(Integer, ForeignKey("posts.post_id"), nullable=False)
+    liker_id = Column(String(36), nullable=False)  # AI用户ID
+    liker_type = Column(String(10), nullable=False, default="ai_user")  # 点赞者类型
+    created_at = Column(DateTime, default=datetime.now)
+    send_at = Column(DateTime, nullable=True)  # 推送时间，用于标记是否已推送
+
+    post = relationship("Post")
+    ai_user = relationship("AIUser", foreign_keys=[liker_id], primaryjoin="and_(PostLike.liker_id==AIUser.user_id, PostLike.liker_type=='ai_user')")
+
+    def __repr__(self):
+        return f"<PostLike(id={self.like_id}, post_id={self.post_id}, liker_id='{self.liker_id}', liker_type='{self.liker_type}')>"
+
+    def __str__(self):
+        return f"帖子点赞#{self.like_id}: 帖子{self.post_id} 被 {self.liker_id} 点赞"

@@ -312,6 +312,11 @@ function handleWebSocketMessage(message) {
       handleAICommentPush(message.data);
       break;
       
+    case 'post_like_push':
+      // 帖子点赞推送
+      handlePostLikePush(message.data);
+      break;
+      
     case 'comment_push_complete':
       // 评论推送完成通知
       handleCommentPushComplete(message.data);
@@ -410,6 +415,77 @@ function handleAICommentPush(data) {
       console.log('[DEBUG] 未找到对应帖子:', data.postId);
     }
   });
+}
+
+// 处理帖子点赞推送
+function handlePostLikePush(data) {
+  console.log('[DEBUG] handlePostLikePush 收到推送:', data.postId, '点赞者:', data.like.liker.username);
+  
+  // 更新帖子的点赞数
+  const post = userPosts.find(p => p.id === data.postId);
+  if (post) {
+    console.log('[DEBUG] 找到帖子，当前点赞数:', post.likes, '即将加1');
+    // 点赞数加1
+    post.likes = (post.likes || 0) + 1;
+    console.log('[DEBUG] 更新后点赞数:', post.likes);
+    
+    // 如果在详情页且是当前帖子，重新渲染详情页
+    if (currentView === 'detail' && currentPost && currentPost.id === data.postId) {
+      console.log('[DEBUG] 在详情页，重新渲染详情页');
+      renderPostDetail(currentPost);
+    }
+    
+    // 如果在时间线视图，重新渲染帖子列表
+    if (currentView === 'timeline') {
+      console.log('[DEBUG] 在时间线视图，重新渲染帖子列表');
+      renderPosts(userPosts);
+    }
+    
+    // 显示点赞通知（可选）
+    showLikeNotification(data.like.liker.username);
+  } else {
+    console.log('[DEBUG] 未找到对应帖子:', data.postId);
+  }
+}
+
+// 显示点赞通知
+function showLikeNotification(username) {
+  // 创建通知元素
+  const notification = document.createElement('div');
+  notification.className = 'like-notification';
+  notification.innerHTML = `
+    <div class="flex items-center">
+      <i class="fas fa-heart text-red-500 mr-2"></i>
+      <span class="text-gray-700">${username} 点赞了你的帖子</span>
+    </div>
+  `;
+  
+  // 添加样式
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    animation: slideInRight 0.3s ease-out;
+  `;
+  
+  // 添加到页面
+  document.body.appendChild(notification);
+  
+  // 3秒后自动移除
+  setTimeout(() => {
+    notification.style.animation = 'slideOutRight 0.3s ease-in';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 3000);
 }
 
 // 处理评论推送完成通知

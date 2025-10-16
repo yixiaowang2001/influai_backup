@@ -278,7 +278,8 @@ class CommentPushService:
                 author_info = {
                     "id": ai_user.user_id,
                     "username": ai_user.username,
-                    "userId": f"@{ai_user.username.lower()}"
+                    "userId": f"@{ai_user.username.lower()}",
+                    "avatar": ai_user.avatar_path or "/data/default_avatars/test.png"
                 }
         elif comment.sender_type == "human_user":
             human_user = crud.get_human_user_by_id(db, int(comment.sender_id))
@@ -286,7 +287,8 @@ class CommentPushService:
                 author_info = {
                     "id": f"human_{human_user.user_id}",
                     "username": human_user.username,
-                    "userId": f"@{human_user.username.lower()}"
+                    "userId": f"@{human_user.username.lower()}",
+                    "avatar": human_user.avatar_path or "/data/default_avatars/test.png"
                 }
         return author_info
     
@@ -316,25 +318,102 @@ class LikePushService:
         self.db_session_func = db_session_func
     
     def get_unpushed_likes(self, target_id: str) -> List[PushItem]:
-        """获取待推送的点赞（这里需要根据实际业务逻辑实现）"""
-        # 这里需要根据你的点赞业务逻辑来实现
-        # 例如：获取某个帖子或评论的待推送点赞
-        return []
+        """获取待推送的点赞记录"""
+        from backend.database import crud
+        
+        db = self.db_session_func()
+        try:
+            post_id = int(target_id)
+            like_records = crud.get_unpushed_post_likes(db, post_id)
+            
+            push_items = []
+            for like_record in like_records:
+                # 获取点赞者信息
+                liker_info = self._get_liker_info(db, like_record)
+                
+                push_item = PushItem(
+                    id=str(like_record.like_id),
+                    content={
+                        "id": f"like_{like_record.like_id}",
+                        "liker": liker_info,
+                        "timestamp": self._format_timestamp(like_record.created_at),
+                        "createdAt": like_record.created_at.isoformat()
+                    },
+                    metadata={
+                        "like_id": like_record.like_id,
+                        "post_id": like_record.post_id,
+                        "liker_id": like_record.liker_id,
+                        "liker_type": like_record.liker_type
+                    }
+                )
+                push_items.append(push_item)
+            
+            return push_items
+            
+        finally:
+            db.close()
     
     def format_like_message(self, target_id: str, item: PushItem) -> Dict[str, Any]:
         """格式化点赞推送消息"""
         return {
-            "type": "like_push",
+            "type": "post_like_push",
             "data": {
-                "targetId": target_id,
-                "likeData": item.content
+                "postId": f"post_{target_id}",
+                "like": item.content
             }
         }
     
     def update_like_push_status(self, like_id: str):
         """更新点赞推送状态"""
-        # 根据实际业务逻辑实现
-        pass
+        from backend.database import crud
+        
+        db = self.db_session_func()
+        try:
+            crud.update_post_like_push_status(db, int(like_id))
+        finally:
+            db.close()
+    
+    def _get_liker_info(self, db, like_record):
+        """获取点赞者信息"""
+        from backend.database import crud
+        
+        liker_info = {}
+        if like_record.liker_type == "ai_user":
+            ai_user = crud.get_ai_user(db, like_record.liker_id)
+            if ai_user:
+                liker_info = {
+                    "id": ai_user.user_id,
+                    "username": ai_user.username,
+                    "userId": f"@{ai_user.username.lower()}",
+                    "avatar": ai_user.avatar_path or "/data/default_avatars/test.png"
+                }
+        elif like_record.liker_type == "human_user":
+            human_user = crud.get_human_user_by_id(db, int(like_record.liker_id))
+            if human_user:
+                liker_info = {
+                    "id": f"human_{human_user.user_id}",
+                    "username": human_user.username,
+                    "userId": f"@{human_user.username.lower()}",
+                    "avatar": human_user.avatar_path or "/data/default_avatars/test.png"
+                }
+        return liker_info
+    
+    def _format_timestamp(self, created_at: datetime) -> str:
+        """格式化时间戳"""
+        now = datetime.now()
+        diff = now - created_at
+        
+        if diff.total_seconds() < 60:
+            return "刚刚"
+        elif diff.total_seconds() < 3600:
+            minutes = int(diff.total_seconds() / 60)
+            return f"{minutes}分钟前"
+        elif diff.total_seconds() < 86400:
+            hours = int(diff.total_seconds() / 3600)
+            return f"{hours}小时前"
+        else:
+            days = int(diff.total_seconds() / 86400)
+            return f"{days}天前"
 
 
 class PushServiceManager:

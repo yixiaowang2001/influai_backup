@@ -82,6 +82,29 @@
     .comment-like-btn.liked:hover {
       background-color: #fef2f2;
     }
+    
+    /* 点赞通知动画 */
+    @keyframes slideInRight {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    @keyframes slideOutRight {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+    }
     .comment-input-box {
       position: fixed;
       bottom: 20px; /* 和发布框同样的位置 */

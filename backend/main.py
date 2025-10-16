@@ -817,6 +817,11 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
             push_service_manager.start_comment_push(created_post.post_id)
         )
         
+        # 启动点赞推送任务
+        like_push_task = asyncio.create_task(
+            push_service_manager.start_like_push(str(created_post.post_id))
+        )
+        
         # 记录任务启动信息到日志
         logger.info(f"帖子发布成功！ID: {created_post.post_id}")
         logger.info(f"内容: {created_post.post_content[:50]}...")
@@ -824,6 +829,7 @@ async def create_post(post_data: CreatePostRequest, db: Session = Depends(get_db
         logger.info(f"发布时间: {datetime.now().strftime('%H:%M:%S')}")
         logger.info(f"Celery评论生成任务已提交: {task.id}")
         logger.info(f"评论推送任务已启动")
+        logger.info(f"点赞推送任务已启动")
         
         return create_response(data={
             **post_response,

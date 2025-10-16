@@ -159,6 +159,55 @@ def generate_comments_task(self, post_id: int, human_user_id: int, template_id: 
         post.like_count = stats["pred_like_count"]
         db.commit()
         
+        # 生成AI用户点赞记录
+        logger.info(f"[Task {task_id}] 开始生成点赞记录，预测点赞数: {stats['pred_like_count']}")
+        
+        # 获取该人类用户的所有AI用户，优先选择态度值较高的用户
+        from backend.database.db_utils import get_available_ai_users_by_attitude
+        from backend.models.attitude import Attitude
+        
+        # 获取所有态度的AI用户
+        all_ai_users = []
+        for attitude in Attitude.create_dict().keys():
+            attitude_users = get_available_ai_users_by_attitude(
+                db=db,
+                attitude_type=attitude,
+                human_user_id=human_user_id
+            )
+            all_ai_users.extend(attitude_users)
+        
+        # 按态度值排序，优先选择态度值较高的用户
+        all_ai_users.sort(key=lambda user: abs(user.attitude_value), reverse=True)
+        
+        # 生成点赞记录
+        import random
+        like_count = stats["pred_like_count"]
+        created_likes = 0
+        
+        for i in range(like_count):
+            if not all_ai_users:
+                logger.warning(f"[Task {task_id}] 没有可用的AI用户生成点赞记录")
+                break
+            
+            # 随机选择一个AI用户（优先选择态度值高的用户）
+            # 使用加权随机选择，态度值高的用户权重更高
+            weights = [abs(user.attitude_value) + 0.1 for user in all_ai_users]  # 加0.1避免权重为0
+            selected_user = random.choices(all_ai_users, weights=weights, k=1)[0]
+            
+            # 创建点赞记录
+            from backend.database import crud
+            crud.create_post_like(
+                db=db,
+                post_id=post_id,
+                liker_id=selected_user.user_id,
+                liker_type="ai_user"
+            )
+            created_likes += 1
+            
+            logger.debug(f"[Task {task_id}] 创建点赞记录: AI用户 {selected_user.username} 点赞帖子 {post_id}")
+        
+        logger.info(f"[Task {task_id}] 点赞记录生成完成: {created_likes} 条")
+        
         logger.info(f"[Task {task_id}] 统计数据更新完成")
         
         # 第七步：任务完成

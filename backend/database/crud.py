@@ -386,6 +386,81 @@ def update_post_like_status(db: Session, post_id: int, is_liked: bool) -> Option
     return post
 
 
+def create_post_like(db: Session, post_id: int, liker_id: str, liker_type: str = "ai_user") -> models.PostLike:
+    """
+    创建帖子点赞记录
+    
+    Args:
+        db: 数据库会话
+        post_id: 帖子ID
+        liker_id: 点赞者ID
+        liker_type: 点赞者类型，默认为"ai_user"
+        
+    Returns:
+        models.PostLike: 创建的点赞记录对象
+    """
+    logger.debug(f"开始创建帖子点赞记录，帖子ID: {post_id}, 点赞者: {liker_id}")
+    
+    db_like = models.PostLike(
+        post_id=post_id,
+        liker_id=liker_id,
+        liker_type=liker_type,
+        created_at=datetime.now(),
+        send_at=None
+    )
+    db.add(db_like)
+    db.commit()
+    db.refresh(db_like)
+    logger.info(f"成功创建帖子点赞记录，ID: {db_like.like_id}")
+    return db_like
+
+
+def get_post_likes_by_post(db: Session, post_id: int) -> List[models.PostLike]:
+    """
+    获取指定帖子的所有点赞记录
+    
+    Args:
+        db: 数据库会话
+        post_id: 帖子ID
+        
+    Returns:
+        List[models.PostLike]: 点赞记录列表
+    """
+    return db.query(models.PostLike).filter(models.PostLike.post_id == post_id).all()
+
+
+def get_unpushed_post_likes(db: Session, post_id: int) -> List[models.PostLike]:
+    """
+    获取指定帖子的未推送点赞记录
+    
+    Args:
+        db: 数据库会话
+        post_id: 帖子ID
+        
+    Returns:
+        List[models.PostLike]: 未推送的点赞记录列表
+    """
+    return db.query(models.PostLike).filter(
+        models.PostLike.post_id == post_id,
+        models.PostLike.send_at.is_(None)
+    ).all()
+
+
+def update_post_like_push_status(db: Session, like_id: int):
+    """
+    更新帖子点赞记录的推送状态
+    
+    Args:
+        db: 数据库会话
+        like_id: 点赞记录ID
+    """
+    like_record = db.query(models.PostLike).filter(models.PostLike.like_id == like_id).first()
+    if like_record:
+        like_record.send_at = datetime.now()
+        db.commit()
+        logger.debug(f"更新点赞记录 {like_id} 的推送状态")
+
+
 def update_comment_like_status(db: Session, comment_id: int, is_liked: bool) -> Optional[models.Comment]:
     """
     更新评论的点赞状态
