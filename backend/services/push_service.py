@@ -65,6 +65,7 @@ class GenericPushManager:
         self.active_tasks[task_id] = task
         
         logger.info(f"启动推送任务 {task_id} - 类型: {config.push_type.value}, 目标: {target_id}")
+        logger.info(f"推送配置: 总时长={config.total_duration}秒, 基础间隔={config.base_interval}秒, 随机波动={config.random_variance}, 初始延迟={config.initial_delay}秒")
         return task_id
     
     async def _execute_push_task(self, 
@@ -85,20 +86,31 @@ class GenericPushManager:
             end_time = start_time + timedelta(seconds=config.total_duration)
             push_count = 0
             
-            # 获取所有待推送的项目
-            all_items = get_items_func(target_id)
+            # 等待并获取待推送的项目（支持轮询等待）
+            all_items = []
+            max_wait_time = 300  # 最多等待5分钟
+            wait_start_time = datetime.now()
+            
+            while not all_items and (datetime.now() - wait_start_time).total_seconds() < max_wait_time:
+                all_items = get_items_func(target_id)
+                if not all_items:
+                    logger.info(f"等待待推送项目生成中... 已等待 {(datetime.now() - wait_start_time).total_seconds():.1f}秒")
+                    await asyncio.sleep(2)  # 每2秒检查一次
+            
             if not all_items:
-                logger.info(f"没有待推送项目，任务 {task_id} 结束")
+                logger.warning(f"等待 {max_wait_time} 秒后仍无待推送项目，任务 {task_id} 结束")
                 return
             
             total_items = len(all_items)
             logger.info(f"总共有 {total_items} 个项目需要推送")
+            logger.info(f"推送配置详情: 总时长={config.total_duration}秒, 基础间隔={config.base_interval}秒")
             
             # 计算推送轮次和每轮推送数量
             total_push_rounds = int(config.total_duration / config.base_interval)
             base_items_per_round = max(1, total_items // total_push_rounds) if total_push_rounds > 0 else total_items
             
             logger.info(f"预计推送轮次: {total_push_rounds}, 基础每轮推送: {base_items_per_round} 个项目")
+            logger.info(f"推送时间范围: {start_time.strftime('%H:%M:%S')} - {end_time.strftime('%H:%M:%S')}")
             
             current_round = 0
             remaining_items = total_items
@@ -128,9 +140,21 @@ class GenericPushManager:
                     break
                 
                 # 推送本轮项目
+                batch_usernames = []  # 收集本轮推送的用户名
                 for item in items_to_push:
                     message = format_message_func(target_id, item)
                     await self.connection_manager.broadcast(json.dumps(message))
+                    
+                    # 收集用户名用于批次通知
+                    if config.push_type == PushType.COMMENT:
+                        username = item.content.get('author', {}).get('username', '')
+                    elif config.push_type == PushType.LIKE:
+                        username = item.content.get('liker', {}).get('username', '')
+                    else:
+                        username = ''
+                    
+                    if username and username not in batch_usernames:
+                        batch_usernames.append(username)
                     
                     # 更新推送状态
                     if update_status_func:
@@ -143,6 +167,17 @@ class GenericPushManager:
                 current_round += 1
                 
                 logger.info(f"第{current_round}轮推送完成: {items_to_push_count}个项目, 剩余{remaining_items}个")
+                
+                # 发送批次推送通知
+                logger.info(f"批次通知检查: usernames={batch_usernames}, count={items_to_push_count}")
+                if batch_usernames and items_to_push_count > 0:
+                    logger.info(f"发送批次通知: {config.push_type.value}, {target_id}, {batch_usernames}, {items_to_push_count}")
+                    await self._send_batch_notification(
+                        config.push_type, target_id, batch_usernames, items_to_push_count
+                    )
+                    logger.info(f"批次通知发送完成: {config.push_type.value} 类型, 目标 {target_id}")
+                else:
+                    logger.info(f"跳过批次通知: usernames={batch_usernames}, count={items_to_push_count}")
                 
                 # 如果已经推送完所有项目，提前结束
                 if remaining_items <= 0:
@@ -197,6 +232,43 @@ class GenericPushManager:
             }
             for task_id in self.active_tasks.keys()
         }
+    
+    async def _send_batch_notification(self, push_type: PushType, target_id: str, 
+                                     usernames: List[str], total_count: int):
+        """发送批次推送通知"""
+        try:
+            # 限制显示的用户名数量（最多3个）
+            display_usernames = usernames[:3]
+            
+            # 生成通知消息
+            if total_count == 1:
+                message = f"{display_usernames[0]}评论了你的帖子" if push_type == PushType.COMMENT else f"{display_usernames[0]}点赞了你的帖子"
+            elif total_count <= 3:
+                action = "评论了你的帖子" if push_type == PushType.COMMENT else "点赞了你的帖子"
+                message = f"{', '.join(display_usernames)}{action}"
+            else:
+                action = "评论了你的帖子" if push_type == PushType.COMMENT else "点赞了你的帖子"
+                message = f"{display_usernames[0]}等{total_count}位用户{action}"
+            
+            # 构造通知消息
+            notification_type = f"{push_type.value}_batch_notification"
+            notification_message = {
+                "type": notification_type,
+                "data": {
+                    "postId": f"post_{target_id}",
+                    "usernames": display_usernames,
+                    "totalCount": total_count,
+                    "message": message
+                }
+            }
+            
+            # 发送通知
+            await self.connection_manager.broadcast(json.dumps(notification_message))
+            logger.info(f"发送批次通知: {message}")
+            logger.info(f"批次通知详情: 类型={notification_type}, 目标={target_id}, 用户数={total_count}, 消息={message}")
+            
+        except Exception as e:
+            logger.error(f"发送批次通知失败: {e}")
 
 
 class CommentPushService:

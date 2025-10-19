@@ -342,6 +342,11 @@ def create_comment_with_sender(db: Session, comment_content: str, post_id: int, 
         models.Comment: 创建的评论对象
     """
     logger.debug(f"开始创建评论，发送者类型: {sender_type}, 发送者ID: {sender_id}")
+    # 根据发送者类型决定send_at字段
+    # AI用户评论：send_at=None（待推送）
+    # 人类用户评论：send_at=datetime.now()（立即推送）
+    send_at_value = None if sender_type == "ai_user" else datetime.now()
+    
     db_comment = models.Comment(
         comment_content=comment_content,
         comment_user_type=comment_user_type,
@@ -350,7 +355,7 @@ def create_comment_with_sender(db: Session, comment_content: str, post_id: int, 
         is_human_user_liked=0,  # 新评论默认未点赞
         master_comment_id=None,
         created_at=datetime.now(),
-        send_at=datetime.now(),
+        send_at=send_at_value,
         post_id=post_id,
         sender_id=sender_id,
         sender_type=sender_type
@@ -589,14 +594,20 @@ def delete_human_user(db: Session, human_user_id: int) -> dict:
         
         deleted_comments_count = deleted_ai_comments_count + deleted_human_comments_count
         
-        # 3. 删除该用户发布的所有帖子（级联删除帖子的评论）
+        # 3. 删除该用户发布的所有帖子（级联删除帖子的评论和点赞）
         posts = db.query(models.Post).filter(models.Post.author_id == human_user_id).all()
         deleted_posts_count = len(posts)
         for post in posts:
+            # 删除帖子的所有点赞记录
+            post_likes = db.query(models.PostLike).filter(models.PostLike.post_id == post.post_id).all()
+            for like in post_likes:
+                db.delete(like)
+            
             # 删除帖子的所有评论（包括其他用户的评论）
             post_comments = db.query(models.Comment).filter(models.Comment.post_id == post.post_id).all()
             for comment in post_comments:
                 db.delete(comment)
+            
             # 删除帖子
             db.delete(post)
         

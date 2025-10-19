@@ -232,149 +232,6 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# 评论推送任务管理器
-class CommentPushManager:
-    def __init__(self):
-        self.push_tasks = {}  # 存储每个帖子的推送任务
-    
-    async def start_comment_push_task(self, post_id: int):
-        """为指定帖子启动评论推送任务"""
-        if post_id in self.push_tasks:
-            logger.warning(f"帖子 {post_id} 的推送任务已存在")
-            return
-        
-        # 创建推送任务（不传递db会话，避免会话冲突）
-        task = asyncio.create_task(self._push_comments_for_post(post_id))
-        self.push_tasks[post_id] = task
-        
-        logger.info(f"为帖子 {post_id} 启动评论推送任务")
-    
-    async def _push_comments_for_post(self, post_id: int):
-        """为指定帖子推送评论的核心逻辑"""
-        # 在推送任务中创建新的数据库会话，避免会话冲突
-        from backend.database.database import get_db_session
-        db = get_db_session()
-        
-        try:
-            logger.info(f"开始为帖子 {post_id} 推送评论...")
-            
-            # 减少初始等待时间，从2秒改为0.5秒
-            await asyncio.sleep(0.5)
-            
-            # 增加最大等待时间和轮询计数，避免无限等待
-            max_wait_rounds = 300  # 最多等待5分钟 (300 * 1秒)
-            wait_rounds = 0
-            
-            while wait_rounds < max_wait_rounds:
-                # 获取该帖子的所有评论
-                comments = crud.get_comments_by_post(db, post_id)
-                
-                # 检查是否还有未推送的评论
-                unprocessed_comments = [c for c in comments if not c.send_at]
-                
-                if not unprocessed_comments:
-                    # 如果还没有评论，等待一段时间再检查
-                    if not comments:
-                        logger.debug(f"帖子 {post_id} 暂无评论，等待AI生成中...")
-                        await asyncio.sleep(1)  # 等待1秒
-                        wait_rounds += 1
-                        continue
-                    else:
-                        logger.info(f"帖子 {post_id} 的所有评论已推送完毕")
-                        break
-                
-                # 随机选择一条未处理的评论进行推送
-                comment_to_push = random.choice(unprocessed_comments)
-                
-                # 获取评论者信息
-                author_info = {}
-                if comment_to_push.sender_type == "ai_user":
-                    ai_user = crud.get_ai_user(db, comment_to_push.sender_id)
-                    if ai_user:
-                        author_info = {
-                            "id": ai_user.user_id,
-                            "username": ai_user.username,
-                            "userId": f"@{ai_user.username.lower()}"
-                        }
-                elif comment_to_push.sender_type == "human_user":
-                    human_user = crud.get_human_user_by_id(db, int(comment_to_push.sender_id))
-                    if human_user:
-                        author_info = {
-                            "id": f"human_{human_user.user_id}",
-                            "username": human_user.username,
-                            "userId": f"@{human_user.username.lower()}"
-                        }
-                
-                # 构建评论数据
-                comment_data = {
-                    "id": f"comment_{comment_to_push.comment_id}",
-                    "content": comment_to_push.comment_content,
-                    "author": author_info,
-                    "timestamp": format_timestamp(comment_to_push.created_at),
-                    "createdAt": comment_to_push.created_at.isoformat()
-                }
-                
-                # 推送评论到前端
-                push_message = {
-                    "type": "new_comment_push",
-                    "data": {
-                        "postId": f"post_{post_id}",
-                        "comment": comment_data
-                    }
-                }
-                
-                await manager.broadcast(json.dumps(push_message))
-                
-                # 更新评论的发送时间
-                comment_to_push.send_at = datetime.now()
-                db.commit()
-                
-                # 记录推送信息到日志
-                logger.info(f"推送评论到前端 - 帖子ID: {post_id}, 评论ID: {comment_to_push.comment_id}")
-                logger.info(f"评论内容: {comment_to_push.comment_content[:50]}...")
-                logger.info(f"评论者: {author_info.get('username', '未知')}")
-                logger.info(f"推送时间: {datetime.now().strftime('%H:%M:%S')}")
-                
-                # 随机等待3-5秒
-                wait_time = random.uniform(3, 5)
-                await asyncio.sleep(wait_time)
-            
-            # 检查是否因为超时退出循环
-            if wait_rounds >= max_wait_rounds:
-                logger.warning(f"帖子 {post_id} 评论推送任务超时，已等待{max_wait_rounds}秒")
-                timeout_message = {
-                    "type": "comment_push_timeout",
-                    "data": {
-                        "postId": f"post_{post_id}",
-                        "message": "评论推送任务超时，请检查AI评论生成状态"
-                    }
-                }
-                await manager.broadcast(json.dumps(timeout_message))
-            else:
-                # 推送完成后，发送完成通知
-                completion_message = {
-                    "type": "comment_push_complete",
-                    "data": {
-                        "postId": f"post_{post_id}",
-                        "message": "该帖子的所有评论已推送完毕"
-                    }
-                }
-                await manager.broadcast(json.dumps(completion_message))
-            
-            logger.info(f"帖子 {post_id} 的评论推送任务完成")
-            
-        except Exception as e:
-            logger.error(f"推送评论失败: {e}")
-        finally:
-            # 确保数据库会话被正确关闭
-            db.close()
-            # 清理任务
-            if post_id in self.push_tasks:
-                del self.push_tasks[post_id]
-
-# 创建评论推送管理器实例
-comment_push_manager = CommentPushManager()
-
 # 导入新的通用推送服务
 from backend.services.push_config import PushConfigManager
 from backend.services.push_service import PushServiceManager
@@ -1346,6 +1203,43 @@ async def start_comment_push_manual(post_id: str,
         logger.error(f"手动启动评论推送失败: {e}")
         raise HTTPException(status_code=500, detail="启动评论推送失败")
 
+@app.post("/push/likes/{post_id}",
+          summary="手动启动点赞推送",
+          description="为指定帖子手动启动点赞推送任务，支持自定义推送配置",
+          response_description="启动成功返回任务ID",
+          tags=["推送管理"])
+async def start_like_push_manual(post_id: str, 
+                                total_duration: int = 180,
+                                base_interval: float = 8.0):
+    """手动启动点赞推送任务"""
+    try:
+        # 从post_id中提取数字ID
+        try:
+            numeric_id = int(post_id.replace("post_", ""))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="无效的帖子ID")
+        
+        # 创建自定义推送配置
+        push_config = PushConfigManager.get_like_config(
+            total_duration=total_duration,
+            base_interval=base_interval
+        )
+        
+        # 启动推送任务
+        task_id = await push_service_manager.start_like_push(str(numeric_id), push_config)
+        
+        return create_response(data={
+            "taskId": task_id,
+            "postId": post_id,
+            "config": {
+                "totalDuration": total_duration,
+                "baseInterval": base_interval
+            }
+        })
+    except Exception as e:
+        logger.error(f"手动启动点赞推送失败: {e}")
+        raise HTTPException(status_code=500, detail="启动点赞推送失败")
+
 # WebSocket接口
 @app.websocket("/ws/updates")
 async def websocket_endpoint(websocket: WebSocket):
@@ -1582,15 +1476,16 @@ async def get_system_status():
         active_connections = len(manager.active_connections)
 
         # 获取推送任务状态
-        push_tasks_count = len(comment_push_manager.push_tasks)
+        active_push_tasks = push_service_manager.get_active_tasks()
+        push_tasks_count = len(active_push_tasks)
 
         # 获取推送任务详情
         push_tasks_info = []
-        for post_id, task in comment_push_manager.push_tasks.items():
+        for task_id, task_info in active_push_tasks.items():
             task_info = {
-                "postId": post_id,
-                "status": "running" if not task.done() else "completed",
-                "exception": str(task.exception()) if task.exception() else None
+                "taskId": task_id,
+                "status": task_info.get("status", "unknown"),
+                "type": task_info.get("type", "unknown")
             }
             push_tasks_info.append(task_info)
 

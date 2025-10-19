@@ -321,6 +321,16 @@ function handleWebSocketMessage(message) {
       // 评论推送完成通知
       handleCommentPushComplete(message.data);
       break;
+      
+    case 'comment_batch_notification':
+      // 评论批次推送通知
+      handleCommentBatchNotification(message.data);
+      break;
+      
+    case 'like_batch_notification':
+      // 点赞批次推送通知
+      handleLikeBatchNotification(message.data);
+      break;
   }
 }
 
@@ -472,6 +482,77 @@ function showLikeNotification(username) {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     z-index: 1000;
     animation: slideInRight 0.3s ease-out;
+  `;
+  
+  // 添加到页面
+  document.body.appendChild(notification);
+  
+  // 3秒后自动移除
+  setTimeout(() => {
+    notification.style.animation = 'slideOutRight 0.3s ease-in';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 3000);
+}
+
+// 处理评论批次推送通知
+function handleCommentBatchNotification(data) {
+  console.log('[DEBUG] handleCommentBatchNotification 收到通知:', data);
+  showCommentBatchNotification(data.usernames, data.totalCount, data.postId, data.message);
+}
+
+// 处理点赞批次推送通知
+function handleLikeBatchNotification(data) {
+  console.log('[DEBUG] handleLikeBatchNotification 收到通知:', data);
+  showLikeBatchNotification(data.usernames, data.totalCount, data.postId, data.message);
+}
+
+// 显示评论批次通知
+function showCommentBatchNotification(usernames, count, postId, message) {
+  showBatchNotification(message, 'comment', usernames, count);
+}
+
+// 显示点赞批次通知
+function showLikeBatchNotification(usernames, count, postId, message) {
+  showBatchNotification(message, 'like', usernames, count);
+}
+
+// 通用批次通知显示函数
+function showBatchNotification(message, type, usernames, count) {
+  // 创建通知元素
+  const notification = document.createElement('div');
+  notification.className = 'batch-notification';
+  
+  // 根据类型选择图标
+  const iconClass = type === 'comment' ? 'fas fa-comment' : 'fas fa-heart';
+  const iconColor = type === 'comment' ? '#3b82f6' : '#dc2626';
+  
+  notification.innerHTML = `
+    <div class="flex items-center">
+      <i class="${iconClass} mr-2" style="color: ${iconColor};"></i>
+      <span class="text-gray-700">${message}</span>
+    </div>
+  `;
+  
+  // 添加样式
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    animation: slideInRight 0.3s ease-out;
+    max-width: 400px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   `;
   
   // 添加到页面
