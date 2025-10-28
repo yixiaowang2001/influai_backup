@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 
 from backend.ai_module.llm import chat
-from backend.ai_module.llm_utils import parse_json_response
+from backend.utils.llm_utils import parse_json_response
 from backend.ai_module.prompts import (
     get_generate_lv1_seeds_prompt,
     get_expand_lv1_comments_prompt,

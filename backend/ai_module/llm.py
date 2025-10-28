@@ -5,7 +5,7 @@ from openai import OpenAI
 
 from backend.configs import API_KEY
 from backend.utils import get_logger
-from .llm_config import LLMConfig
+from backend.configs.llm_config import LLMConfig
 
 logger = get_logger(__name__)
 client = OpenAI(

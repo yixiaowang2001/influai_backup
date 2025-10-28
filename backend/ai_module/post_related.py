@@ -2,7 +2,7 @@ from typing import Dict, List, Optional
 
 from backend.utils import get_logger
 from .llm import chat
-from .llm_utils import parse_json_response
+from backend.utils.llm_utils import parse_json_response
 from .prompts import get_predict_post_stats_prompt
 
 logger = get_logger(__name__)

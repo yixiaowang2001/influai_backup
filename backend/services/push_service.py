@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass
 
 from backend.utils.logger import get_logger
-from backend.services.push_config import PushConfig, PushType
+from backend.configs.push_config import PushConfig, PushType
 
 logger = get_logger(__name__)
 
@@ -500,7 +500,7 @@ class PushServiceManager:
     async def start_comment_push(self, post_id: int, config=None):
         """启动评论推送任务"""
         if config is None:
-            from backend.services.push_config import PushConfigManager
+            from backend.configs.push_config import PushConfigManager
             config = PushConfigManager.get_default_comment_config()
         
         return await self.push_manager.start_push_task(
@@ -514,7 +514,7 @@ class PushServiceManager:
     async def start_like_push(self, target_id: str, config=None):
         """启动点赞推送任务"""
         if config is None:
-            from backend.services.push_config import PushConfigManager
+            from backend.configs.push_config import PushConfigManager
             config = PushConfigManager.get_default_like_config()
         
         return await self.push_manager.start_push_task(

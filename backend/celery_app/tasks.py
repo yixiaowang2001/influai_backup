@@ -163,7 +163,7 @@ def generate_comments_task(self, post_id: int, human_user_id: int, template_id: 
         logger.info(f"[Task {task_id}] 开始生成点赞记录，预测点赞数: {stats['pred_like_count']}")
         
         # 获取该人类用户的所有AI用户，优先选择态度值较高的用户
-        from backend.database.db_utils import get_available_ai_users_by_attitude
+        from backend.utils.db_utils import get_available_ai_users_by_attitude
         from backend.models.attitude import Attitude
         
         # 获取所有态度的AI用户

@@ -14,7 +14,7 @@ os.environ["MYSQL_CHARSET"] = "utf8mb4"
 from backend.database import models
 from backend.database.crud import get_user_template_by_name
 from backend.database.database import get_engine, Base, get_db_session
-from backend.database.db_utils import init_ai_users
+from backend.utils.db_utils import init_ai_users
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -129,7 +129,8 @@ def insert_init_data(template_name: str = None) -> None:
                     "commenter_distribution": template.commenter_distribution,
                     "default_avatar_path": template.default_avatar_path
                 }
-                all_ai_users = init_ai_users(user_template_dict)
+                # 注意：此处没有 human_user_id，维持原逻辑行为
+                all_ai_users = init_ai_users(user_template_dict, human_user_id=0)
                 for ai_user in all_ai_users:
                     db.add(ai_user)
                 db.commit()

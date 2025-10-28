@@ -233,7 +233,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # 导入新的通用推送服务
-from backend.services.push_config import PushConfigManager
+from backend.configs.push_config import PushConfigManager
 from backend.services.push_service import PushServiceManager
 from backend.database.database import get_db_session
 
@@ -472,7 +472,7 @@ async def set_current_user(user_data: SetCurrentUserRequest, db: Session = Depen
                 }
                 
                 # 初始化AI用户
-                from backend.database.db_utils import init_ai_users
+                from backend.utils.db_utils import init_ai_users
                 all_ai_users = init_ai_users(user_template_dict, human_user_id)
                 
                 for ai_user in all_ai_users:

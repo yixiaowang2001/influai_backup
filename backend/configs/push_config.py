@@ -4,13 +4,29 @@
 """
 from dataclasses import dataclass
 from enum import Enum
-from backend.configs.global_config import PUSH_CONFIG
 
 
 class PushType(Enum):
     """推送类型枚举"""
     COMMENT = "comment"
     LIKE = "like"
+
+
+# 内联默认推送配置，避免依赖全局模块
+_DEFAULT_PUSH_CONFIG = {
+    "comment": {
+        "total_duration": 120,  # 总推送时间（秒）
+        "base_interval": 5.0,   # 基础间隔（秒）
+        "random_variance": 0.3, # 随机波动比例（30%）
+        "initial_delay": 1.0    # 初始延迟（秒）
+    },
+    "like": {
+        "total_duration": 10,  # 总推送时间（秒）
+        "base_interval": 2.0,   # 基础间隔（秒）
+        "random_variance": 0.0, # 随机波动比例（30%）
+        "initial_delay": 0.5    # 初始延迟（秒）
+    }
+}
 
 
 @dataclass
@@ -27,9 +43,9 @@ class PushConfigManager:
     """推送配置管理器"""
     
     @classmethod
-    def _get_config_from_global(cls, push_type: str) -> PushConfig:
-        """从全局配置获取推送配置"""
-        config_data = PUSH_CONFIG[push_type]
+    def _get_default_config(cls, push_type: str) -> PushConfig:
+        """从内联默认配置获取推送配置"""
+        config_data = _DEFAULT_PUSH_CONFIG[push_type]
         return PushConfig(
             push_type=PushType(push_type),
             total_duration=config_data["total_duration"],
@@ -38,7 +54,7 @@ class PushConfigManager:
             initial_delay=config_data["initial_delay"]
         )
     
-    # 默认配置（从全局配置读取）
+    # 默认配置（懒加载）
     DEFAULT_COMMENT_CONFIG = None
     DEFAULT_LIKE_CONFIG = None
     
@@ -46,9 +62,9 @@ class PushConfigManager:
     def _init_default_configs(cls):
         """初始化默认配置"""
         if cls.DEFAULT_COMMENT_CONFIG is None:
-            cls.DEFAULT_COMMENT_CONFIG = cls._get_config_from_global("comment")
+            cls.DEFAULT_COMMENT_CONFIG = cls._get_default_config("comment")
         if cls.DEFAULT_LIKE_CONFIG is None:
-            cls.DEFAULT_LIKE_CONFIG = cls._get_config_from_global("like")
+            cls.DEFAULT_LIKE_CONFIG = cls._get_default_config("like")
     
     @classmethod
     def get_default_comment_config(cls):
@@ -64,7 +80,7 @@ class PushConfigManager:
     
     @classmethod
     def get_comment_config(cls, total_duration: int = 300, base_interval: float = 10.0) -> PushConfig:
-        """获取评论推送配置"""
+        """获取评论推送配置（可自定义）"""
         return PushConfig(
             push_type=PushType.COMMENT,
             total_duration=total_duration,
@@ -75,7 +91,7 @@ class PushConfigManager:
     
     @classmethod
     def get_like_config(cls, total_duration: int = 180, base_interval: float = 8.0) -> PushConfig:
-        """获取点赞推送配置"""
+        """获取点赞推送配置（可自定义）"""
         return PushConfig(
             push_type=PushType.LIKE,
             total_duration=total_duration,
